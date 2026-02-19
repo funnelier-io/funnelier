@@ -1,0 +1,165 @@
+[project]
+name = "funnelier"
+version = "0.1.0"
+description = "Marketing Funnel Analytics Platform - Multi-tenant SaaS"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [
+    {name = "Funnelier Team"}
+]
+keywords = ["marketing", "funnel", "analytics", "rfm", "saas"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Web Environment",
+    "Framework :: FastAPI",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+
+dependencies = [
+    # Web Framework
+    "fastapi>=0.109.0",
+    "uvicorn[standard]>=0.27.0",
+    "python-multipart>=0.0.6",
+
+    # Database
+    "sqlalchemy[asyncio]>=2.0.25",
+    "asyncpg>=0.29.0",
+    "alembic>=1.13.1",
+    "pymongo>=4.6.1",
+    "motor>=3.3.2",
+
+    # Redis & Caching
+    "redis>=5.0.1",
+    "aioredis>=2.0.1",
+
+    # Background Tasks
+    "celery[redis]>=5.3.6",
+    "celery-beat>=0.1.0",
+
+    # Data Processing
+    "pandas>=2.2.0",
+    "openpyxl>=3.1.2",
+    "xlrd>=2.0.1",
+    "numpy>=1.26.3",
+
+    # Validation & Serialization
+    "pydantic>=2.5.3",
+    "pydantic-settings>=2.1.0",
+    "email-validator>=2.1.0",
+
+    # Authentication
+    "python-jose[cryptography]>=3.3.0",
+    "passlib[bcrypt]>=1.7.4",
+
+    # HTTP Client
+    "httpx>=0.26.0",
+    "aiohttp>=3.9.1",
+
+    # Date/Time
+    "python-dateutil>=2.8.2",
+    "jdatetime>=4.1.1",
+    "pytz>=2024.1",
+
+    # Utilities
+    "python-dotenv>=1.0.0",
+    "structlog>=24.1.0",
+    "tenacity>=8.2.3",
+    "phonenumbers>=8.13.27",
+
+    # ETL
+    "aioboto3>=12.3.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.4",
+    "pytest-asyncio>=0.23.3",
+    "pytest-cov>=4.1.0",
+    "pytest-mock>=3.12.0",
+    "httpx>=0.26.0",
+    "factory-boy>=3.3.0",
+    "faker>=22.2.0",
+    "black>=24.1.0",
+    "ruff>=0.1.14",
+    "mypy>=1.8.0",
+    "pre-commit>=3.6.0",
+]
+
+test = [
+    "pytest>=7.4.4",
+    "pytest-asyncio>=0.23.3",
+    "pytest-cov>=4.1.0",
+    "pytest-mock>=3.12.0",
+    "httpx>=0.26.0",
+    "factory-boy>=3.3.0",
+    "faker>=22.2.0",
+]
+
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.black]
+line-length = 100
+target-version = ["py311"]
+include = '\.pyi?$'
+exclude = '''
+/(
+    \.git
+    | \.hg
+    | \.mypy_cache
+    | \.tox
+    | \.venv
+    | _build
+    | buck-out
+    | build
+    | dist
+    | migrations
+)/
+'''
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+]
+ignore = [
+    "E501",  # line too long (handled by black)
+    "B008",  # do not perform function calls in argument defaults
+]
+
+[tool.ruff.per-file-ignores]
+"__init__.py" = ["F401"]
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+plugins = ["pydantic.mypy"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --cov=src --cov-report=term-missing"
+filterwarnings = [
+    "ignore::DeprecationWarning",
+]
+
