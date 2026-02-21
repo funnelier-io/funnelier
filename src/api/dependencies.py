@@ -46,6 +46,16 @@ async def get_current_tenant_id(
     return DEFAULT_TENANT_ID
 
 
+async def get_current_user_id() -> UUID:
+    """Get current user from auth context. Stub for development."""
+    return UUID("00000000-0000-0000-0000-000000000002")
+
+
+async def get_super_admin() -> bool:
+    """Check if current user is super admin. Stub for development."""
+    return True
+
+
 # ──────────────────────── Leads Repositories ────────────────────────
 
 

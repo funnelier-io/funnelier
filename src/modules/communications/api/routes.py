@@ -10,6 +10,20 @@ from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
 
+from src.api.dependencies import (
+    get_sms_log_repository,
+    get_sms_template_repository,
+    get_call_log_repository,
+    get_current_tenant_id,
+)
+from src.core.domain import SMSDirection, SMSStatus, CallType, CallSource
+from src.modules.communications.domain.entities import SMSLog, SMSTemplate, CallLog
+from src.modules.communications.infrastructure.repositories import (
+    SMSLogRepository,
+    SMSTemplateRepository,
+    CallLogRepository,
+)
+
 from .schemas import (
     BulkSendSMSRequest,
     BulkSendSMSResponse,
@@ -40,72 +54,54 @@ router = APIRouter(tags=["communications"])
 
 
 # ============================================================================
-# Dependencies
-# ============================================================================
-
-async def get_current_tenant() -> UUID:
-    """Get current tenant from auth context."""
-    return UUID("00000000-0000-0000-0000-000000000001")
-
-
-async def get_current_user() -> UUID:
-    """Get current user from auth context."""
-    return UUID("00000000-0000-0000-0000-000000000002")
-
-
-# ============================================================================
 # SMS Endpoints
 # ============================================================================
 
 @router.post("/sms/send", response_model=SMSLogResponse)
 async def send_sms(
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    repo: Annotated[SMSLogRepository, Depends(get_sms_log_repository)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
     request: SendSMSRequest,
 ):
-    """
-    Send a single SMS message.
-    """
-    # TODO: Inject SMS service via dependency injection
-    return SMSLogResponse(
-        id=uuid4(),
+    """Send a single SMS message."""
+    sms = SMSLog(
         tenant_id=tenant_id,
         contact_id=request.contact_id,
         phone_number=request.phone_number,
-        direction="outbound",
+        direction=SMSDirection.OUTBOUND,
         content=request.content,
         template_id=request.template_id,
-        status="pending",
+        status=SMSStatus.PENDING,
         campaign_id=request.campaign_id,
         provider_name="kavenegar",
-        created_at=datetime.utcnow(),
+    )
+    saved = await repo.add(sms)
+    return SMSLogResponse(
+        id=saved.id, tenant_id=saved.tenant_id, contact_id=saved.contact_id,
+        phone_number=saved.phone_number, direction="outbound", content=saved.content,
+        template_id=saved.template_id, status=saved.status.value if hasattr(saved.status, 'value') else saved.status,
+        campaign_id=saved.campaign_id, provider_name=saved.provider_name,
+        created_at=saved.created_at,
     )
 
 
 @router.post("/sms/send-bulk", response_model=BulkSendSMSResponse)
 async def send_bulk_sms(
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
     request: BulkSendSMSRequest,
 ):
-    """
-    Send SMS to multiple recipients.
-    """
-    # Calculate recipients count
+    """Send SMS to multiple recipients."""
     recipients = 0
     if request.contact_ids:
         recipients = len(request.contact_ids)
     elif request.phone_numbers:
         recipients = len(request.phone_numbers)
-
-    return BulkSendSMSResponse(
-        total_queued=recipients,
-        estimated_cost=recipients * 500,  # Rough estimate
-        job_id=uuid4(),
-    )
+    return BulkSendSMSResponse(total_queued=recipients, estimated_cost=recipients * 500, job_id=uuid4())
 
 
 @router.get("/sms/logs", response_model=SMSLogListResponse)
 async def list_sms_logs(
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    repo: Annotated[SMSLogRepository, Depends(get_sms_log_repository)],
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
     contact_id: UUID | None = Query(default=None),
@@ -116,93 +112,98 @@ async def list_sms_logs(
     date_from: datetime | None = Query(default=None),
     date_to: datetime | None = Query(default=None),
 ):
-    """
-    List SMS logs with filtering.
-    """
+    """List SMS logs with filtering."""
+    skip = (page - 1) * page_size
+    if phone_number:
+        logs = await repo.get_by_phone(phone_number, skip=skip, limit=page_size)
+    elif status:
+        logs = await repo.get_by_status(status, skip=skip, limit=page_size)
+    elif campaign_id:
+        logs = await repo.get_by_campaign(campaign_id, skip=skip, limit=page_size)
+    elif date_from and date_to:
+        logs = await repo.get_by_date_range(date_from, date_to, skip=skip, limit=page_size)
+    else:
+        logs = await repo.get_all(skip=skip, limit=page_size)
+    total = await repo.count()
     return SMSLogListResponse(
-        logs=[],
-        total_count=0,
-        page=page,
-        page_size=page_size,
-        has_next=False,
-        has_prev=page > 1,
+        logs=[SMSLogResponse(
+            id=l.id, tenant_id=l.tenant_id, contact_id=l.contact_id,
+            phone_number=l.phone_number, direction="outbound", content=l.content,
+            template_id=l.template_id,
+            status=l.status.value if hasattr(l.status, 'value') else l.status,
+            campaign_id=l.campaign_id, provider_name=l.provider_name,
+            sent_at=l.sent_at, delivered_at=l.delivered_at,
+            created_at=l.created_at,
+        ) for l in logs],
+        total_count=total, page=page, page_size=page_size,
+        has_next=(page * page_size) < total, has_prev=page > 1,
     )
 
 
 @router.get("/sms/logs/{log_id}", response_model=SMSLogResponse)
 async def get_sms_log(
     log_id: UUID,
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    repo: Annotated[SMSLogRepository, Depends(get_sms_log_repository)],
 ):
-    """
-    Get SMS log by ID.
-    """
-    raise HTTPException(status_code=404, detail="SMS log not found")
+    """Get SMS log by ID."""
+    log = await repo.get(log_id)
+    if not log:
+        raise HTTPException(status_code=404, detail="SMS log not found")
+    return SMSLogResponse(
+        id=log.id, tenant_id=log.tenant_id, contact_id=log.contact_id,
+        phone_number=log.phone_number, direction="outbound", content=log.content,
+        template_id=log.template_id,
+        status=log.status.value if hasattr(log.status, 'value') else log.status,
+        campaign_id=log.campaign_id, provider_name=log.provider_name,
+        sent_at=log.sent_at, delivered_at=log.delivered_at,
+        created_at=log.created_at,
+    )
 
 
 @router.post("/sms/check-status", response_model=SMSDeliveryStatusResponse)
 async def check_sms_delivery_status(
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
     request: SMSDeliveryStatusRequest,
 ):
-    """
-    Check delivery status for multiple messages.
-    """
+    """Check delivery status for multiple messages."""
     return SMSDeliveryStatusResponse(
         statuses={mid: "delivered" for mid in request.message_ids},
-        total_delivered=len(request.message_ids),
-        total_failed=0,
-        total_pending=0,
+        total_delivered=len(request.message_ids), total_failed=0, total_pending=0,
     )
 
 
 @router.post("/sms/import-csv", response_model=dict)
 async def import_sms_logs_from_csv(
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
     file: UploadFile = File(...),
 ):
-    """
-    Import SMS logs from CSV file (e.g., from Kavenegar).
-    """
-    return {
-        "total_imported": 0,
-        "success_count": 0,
-        "error_count": 0,
-    }
+    """Import SMS logs from CSV file (e.g., from Kavenegar)."""
+    # TODO: Parse CSV and bulk create via repo
+    return {"total_imported": 0, "success_count": 0, "error_count": 0}
 
 
 @router.get("/sms/stats", response_model=SMSStatsResponse)
 async def get_sms_stats(
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    repo: Annotated[SMSLogRepository, Depends(get_sms_log_repository)],
     start_date: datetime = Query(default=None),
     end_date: datetime = Query(default=None),
 ):
-    """
-    Get SMS statistics for a period.
-    """
+    """Get SMS statistics for a period."""
     if start_date is None:
         start_date = datetime.utcnow() - timedelta(days=30)
     if end_date is None:
         end_date = datetime.utcnow()
 
+    stats = await repo.get_delivery_stats(start_date, end_date)
+    total_sent = sum(stats.values())
+    delivered = stats.get("delivered", 0)
+
     return SMSStatsResponse(
-        period_start=start_date,
-        period_end=end_date,
-        total_sent=5000,
-        total_delivered=4700,
-        total_failed=300,
-        delivery_rate=0.94,
-        total_cost=2_500_000,
-        by_status={
-            "delivered": 4700,
-            "failed": 300,
-            "pending": 0,
-        },
-        by_template=[
-            {"template_name": "خوش‌آمدگویی", "count": 1500, "delivery_rate": 0.95},
-            {"template_name": "پیگیری", "count": 2000, "delivery_rate": 0.93},
-            {"template_name": "تخفیف", "count": 1500, "delivery_rate": 0.94},
-        ],
+        period_start=start_date, period_end=end_date,
+        total_sent=total_sent, total_delivered=delivered,
+        total_failed=stats.get("failed", 0),
+        delivery_rate=delivered / total_sent if total_sent > 0 else 0,
+        total_cost=0, by_status=stats, by_template=[],
     )
 
 
@@ -210,165 +211,126 @@ async def get_sms_stats(
 # SMS Template Endpoints
 # ============================================================================
 
+def _template_to_response(t: SMSTemplate) -> SMSTemplateResponse:
+    content = t.content
+    char_count = len(content)
+    sms_parts = 1 if char_count <= 70 else (char_count + 66) // 67
+    return SMSTemplateResponse(
+        id=t.id, tenant_id=t.tenant_id, name=t.name, content=content,
+        description=t.description, category=t.category,
+        target_segments=t.target_segments, times_used=t.times_used,
+        character_count=char_count, sms_parts=sms_parts,
+        is_active=t.is_active, metadata=t.metadata,
+        created_at=t.created_at, updated_at=t.updated_at,
+    )
+
+
 @router.get("/templates", response_model=SMSTemplateListResponse)
 async def list_sms_templates(
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    repo: Annotated[SMSTemplateRepository, Depends(get_sms_template_repository)],
     category: str | None = Query(default=None),
     segment: str | None = Query(default=None),
     include_inactive: bool = Query(default=False),
 ):
-    """
-    List SMS templates.
-    """
-    # Sample templates
-    templates = [
-        SMSTemplateResponse(
-            id=uuid4(),
-            tenant_id=tenant_id,
-            name="خوش‌آمدگویی",
-            content="سلام {name}، به فروشگاه ما خوش آمدید! برای اطلاع از محصولات جدید با ما در تماس باشید.",
-            description="پیام خوش‌آمدگویی برای سرنخ‌های جدید",
-            category="welcome",
-            target_segments=["new_customers", "potential_loyalist"],
-            times_used=1500,
-            character_count=80,
-            sms_parts=2,
-            is_active=True,
-            created_at=datetime.utcnow(),
-        ),
-        SMSTemplateResponse(
-            id=uuid4(),
-            tenant_id=tenant_id,
-            name="پیگیری خرید",
-            content="{name} عزیز، از خرید شما متشکریم. آیا سوالی درباره محصول دارید؟",
-            description="پیام پیگیری بعد از خرید",
-            category="follow_up",
-            target_segments=["loyal", "champions"],
-            times_used=2000,
-            character_count=60,
-            sms_parts=1,
-            is_active=True,
-            created_at=datetime.utcnow(),
-        ),
-        SMSTemplateResponse(
-            id=uuid4(),
-            tenant_id=tenant_id,
-            name="تخفیف ویژه",
-            content="🎉 تخفیف ویژه! {discount}% تخفیف روی {product}. تا {date} فرصت دارید.",
-            description="پیام اطلاع‌رسانی تخفیف",
-            category="promotion",
-            target_segments=["at_risk", "hibernating"],
-            times_used=1500,
-            character_count=70,
-            sms_parts=1,
-            is_active=True,
-            created_at=datetime.utcnow(),
-        ),
-    ]
-
+    """List SMS templates."""
+    if category:
+        templates = await repo.get_by_category(category)
+    elif segment:
+        templates = await repo.get_by_segment(segment)
+    elif not include_inactive:
+        templates = await repo.get_active_templates()
+    else:
+        templates = await repo.get_all()
     return SMSTemplateListResponse(
-        templates=templates,
+        templates=[_template_to_response(t) for t in templates],
         total_count=len(templates),
     )
 
 
 @router.post("/templates", response_model=SMSTemplateResponse, status_code=201)
 async def create_sms_template(
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    repo: Annotated[SMSTemplateRepository, Depends(get_sms_template_repository)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
     request: CreateSMSTemplateRequest,
 ):
-    """
-    Create a new SMS template.
-    """
-    content = request.content
-    char_count = len(content)
-    sms_parts = 1 if char_count <= 70 else (char_count + 66) // 67
-
-    return SMSTemplateResponse(
-        id=uuid4(),
-        tenant_id=tenant_id,
-        name=request.name,
-        content=content,
-        description=request.description,
-        category=request.category,
-        target_segments=request.target_segments,
-        target_products=request.target_products,
-        variant_group=request.variant_group,
-        variant_name=request.variant_name,
-        is_active=request.is_active,
-        times_used=0,
-        character_count=char_count,
-        sms_parts=sms_parts,
-        metadata=request.metadata,
-        created_at=datetime.utcnow(),
+    """Create a new SMS template."""
+    template = SMSTemplate(
+        tenant_id=tenant_id, name=request.name, content=request.content,
+        description=request.description, category=request.category,
+        target_segments=request.target_segments or [],
+        is_active=request.is_active if request.is_active is not None else True,
+        metadata=request.metadata or {},
     )
+    saved = await repo.add(template)
+    return _template_to_response(saved)
 
 
 @router.get("/templates/{template_id}", response_model=SMSTemplateResponse)
 async def get_sms_template(
     template_id: UUID,
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    repo: Annotated[SMSTemplateRepository, Depends(get_sms_template_repository)],
 ):
-    """
-    Get SMS template by ID.
-    """
-    raise HTTPException(status_code=404, detail="Template not found")
+    """Get SMS template by ID."""
+    t = await repo.get(template_id)
+    if not t:
+        raise HTTPException(status_code=404, detail="Template not found")
+    return _template_to_response(t)
 
 
 @router.put("/templates/{template_id}", response_model=SMSTemplateResponse)
 async def update_sms_template(
     template_id: UUID,
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    repo: Annotated[SMSTemplateRepository, Depends(get_sms_template_repository)],
     request: UpdateSMSTemplateRequest,
 ):
-    """
-    Update an SMS template.
-    """
-    raise HTTPException(status_code=404, detail="Template not found")
+    """Update an SMS template."""
+    t = await repo.get(template_id)
+    if not t:
+        raise HTTPException(status_code=404, detail="Template not found")
+    update_data = request.model_dump(exclude_unset=True)
+    for key, value in update_data.items():
+        if hasattr(t, key):
+            setattr(t, key, value)
+    saved = await repo.update(t)
+    return _template_to_response(saved)
 
 
 @router.delete("/templates/{template_id}", status_code=204)
 async def delete_sms_template(
     template_id: UUID,
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    repo: Annotated[SMSTemplateRepository, Depends(get_sms_template_repository)],
 ):
-    """
-    Delete an SMS template.
-    """
-    pass
+    """Delete an SMS template."""
+    await repo.delete(template_id)
 
 
 @router.get("/templates/{template_id}/performance", response_model=TemplatePerformanceResponse)
 async def get_template_performance(
     template_id: UUID,
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    repo: Annotated[SMSTemplateRepository, Depends(get_sms_template_repository)],
     start_date: datetime = Query(default=None),
     end_date: datetime = Query(default=None),
 ):
-    """
-    Get performance metrics for a template.
-    """
+    """Get performance metrics for a template."""
+    t = await repo.get(template_id)
+    if not t:
+        raise HTTPException(status_code=404, detail="Template not found")
     return TemplatePerformanceResponse(
-        template_id=template_id,
-        template_name="Sample Template",
-        times_used=1000,
-        delivery_rate=0.94,
-        response_rate=0.15,
-        conversion_rate=0.05,
+        template_id=t.id, template_name=t.name, times_used=t.times_used,
+        delivery_rate=0.0, response_rate=0.0, conversion_rate=0.0,
     )
 
 
 @router.get("/templates/by-segment/{segment}")
 async def get_templates_for_segment(
     segment: str,
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    repo: Annotated[SMSTemplateRepository, Depends(get_sms_template_repository)],
 ):
-    """
-    Get recommended templates for an RFM segment.
-    """
+    """Get recommended templates for an RFM segment."""
+    templates = await repo.get_by_segment(segment)
     return {
         "segment": segment,
-        "templates": [],
+        "templates": [_template_to_response(t) for t in templates],
     }
 
 
@@ -376,9 +338,23 @@ async def get_templates_for_segment(
 # Call Log Endpoints
 # ============================================================================
 
+def _call_to_response(c: CallLog) -> CallLogResponse:
+    return CallLogResponse(
+        id=c.id, tenant_id=c.tenant_id, contact_id=c.contact_id,
+        phone_number=c.phone_number,
+        call_type=c.call_type.value if hasattr(c.call_type, 'value') else c.call_type,
+        source=c.source.value if hasattr(c.source, 'value') else c.source,
+        duration_seconds=c.duration_seconds, call_time=c.call_time,
+        salesperson_id=c.salesperson_id, salesperson_name=c.salesperson_name,
+        is_successful=c.is_successful,
+        voip_call_id=c.voip_call_id, recording_url=c.recording_url,
+        created_at=c.created_at,
+    )
+
+
 @router.get("/calls", response_model=CallLogListResponse)
 async def list_call_logs(
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    repo: Annotated[CallLogRepository, Depends(get_call_log_repository)],
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
     contact_id: UUID | None = Query(default=None),
@@ -392,104 +368,107 @@ async def list_call_logs(
     date_to: datetime | None = Query(default=None),
     min_duration: int | None = Query(default=None),
 ):
-    """
-    List call logs with filtering.
-    """
+    """List call logs with filtering."""
+    skip = (page - 1) * page_size
+    if phone_number:
+        calls = await repo.get_by_phone(phone_number, skip=skip, limit=page_size)
+    elif salesperson_id:
+        calls = await repo.get_by_salesperson(salesperson_id, skip=skip, limit=page_size)
+    elif source:
+        calls = await repo.get_by_source(source, skip=skip, limit=page_size)
+    elif date_from and date_to:
+        calls = await repo.get_by_date_range(date_from, date_to, skip=skip, limit=page_size)
+    elif is_successful:
+        calls = await repo.get_successful_calls(skip=skip, limit=page_size)
+    else:
+        calls = await repo.get_all(skip=skip, limit=page_size)
+    total = await repo.count()
     return CallLogListResponse(
-        calls=[],
-        total_count=0,
-        page=page,
-        page_size=page_size,
-        has_next=False,
-        has_prev=page > 1,
+        calls=[_call_to_response(c) for c in calls],
+        total_count=total, page=page, page_size=page_size,
+        has_next=(page * page_size) < total, has_prev=page > 1,
+    )
+
+
+@router.get("/calls/stats", response_model=CallStatsResponse)
+async def get_call_stats(
+    repo: Annotated[CallLogRepository, Depends(get_call_log_repository)],
+    start_date: datetime = Query(default=None),
+    end_date: datetime = Query(default=None),
+    salesperson_id: UUID | None = Query(default=None),
+):
+    """Get call statistics for a period."""
+    if start_date is None:
+        start_date = datetime.utcnow() - timedelta(days=30)
+    if end_date is None:
+        end_date = datetime.utcnow()
+    stats = await repo.get_call_stats(start_date, end_date)
+    total = stats.get("total", 0)
+    successful = stats.get("successful", 0)
+    return CallStatsResponse(
+        period_start=start_date, period_end=end_date,
+        total_calls=total, total_answered=successful,
+        total_successful=successful,
+        total_duration=stats.get("total_duration", 0),
+        average_duration=stats.get("total_duration", 0) // max(total, 1),
+        answer_rate=successful / max(total, 1),
+        success_rate=successful / max(total, 1),
+        by_type={}, by_salesperson=[],
     )
 
 
 @router.get("/calls/{call_id}", response_model=CallLogResponse)
 async def get_call_log(
     call_id: UUID,
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    repo: Annotated[CallLogRepository, Depends(get_call_log_repository)],
 ):
-    """
-    Get call log by ID.
-    """
-    raise HTTPException(status_code=404, detail="Call log not found")
+    """Get call log by ID."""
+    call = await repo.get(call_id)
+    if not call:
+        raise HTTPException(status_code=404, detail="Call log not found")
+    return _call_to_response(call)
 
 
 @router.post("/calls/import", response_model=ImportCallLogsResponse)
 async def import_call_logs(
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    repo: Annotated[CallLogRepository, Depends(get_call_log_repository)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
     request: ImportCallLogsRequest,
 ):
-    """
-    Import call logs from various sources.
-    """
-    total = len(request.calls) if request.calls else 0
+    """Import call logs from various sources."""
+    calls = []
+    for item in (request.calls or []):
+        call = CallLog(
+            tenant_id=tenant_id, phone_number=item.phone_number,
+            call_type=CallType.OUTGOING, source=CallSource.MOBILE,
+            duration_seconds=item.duration_seconds, call_time=item.call_time,
+            salesperson_id=item.salesperson_id,
+        )
+        call.evaluate_success()
+        calls.append(call)
+    success, errors, error_list = await repo.bulk_create(calls)
     return ImportCallLogsResponse(
-        total_imported=total,
-        success_count=total,
-        error_count=0,
-        matched_contacts=0,
-        new_contacts=0,
+        total_imported=len(calls), success_count=success, error_count=errors,
+        matched_contacts=0, new_contacts=0,
     )
 
 
 @router.post("/calls/import-csv", response_model=ImportCallLogsResponse)
 async def import_call_logs_from_csv(
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
     file: UploadFile = File(...),
     salesperson_id: UUID | None = Query(default=None),
     salesperson_name: str | None = Query(default=None),
     source: str = Query(default="mobile"),
     successful_call_threshold: int = Query(default=90),
 ):
-    """
-    Import call logs from CSV file.
-    """
+    """Import call logs from CSV file."""
+    # TODO: Parse CSV and bulk create via repo
     return ImportCallLogsResponse(
-        total_imported=0,
-        success_count=0,
-        error_count=0,
-        matched_contacts=0,
-        new_contacts=0,
+        total_imported=0, success_count=0, error_count=0,
+        matched_contacts=0, new_contacts=0,
     )
 
-
-@router.get("/calls/stats", response_model=CallStatsResponse)
-async def get_call_stats(
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
-    start_date: datetime = Query(default=None),
-    end_date: datetime = Query(default=None),
-    salesperson_id: UUID | None = Query(default=None),
-):
-    """
-    Get call statistics for a period.
-    """
-    if start_date is None:
-        start_date = datetime.utcnow() - timedelta(days=30)
-    if end_date is None:
-        end_date = datetime.utcnow()
-
-    return CallStatsResponse(
-        period_start=start_date,
-        period_end=end_date,
-        total_calls=3000,
-        total_answered=1200,
-        total_successful=600,
-        total_duration=360000,
-        average_duration=120,
-        answer_rate=0.40,
-        success_rate=0.20,
-        by_type={
-            "outbound": 2500,
-            "inbound": 500,
-        },
-        by_salesperson=[
-            {"name": "اسدالهی", "calls": 400, "answered": 150, "successful": 75},
-            {"name": "بردبار", "calls": 380, "answered": 140, "successful": 70},
-            {"name": "رضایی", "calls": 350, "answered": 130, "successful": 65},
-        ],
-    )
 
 
 # ============================================================================
@@ -497,65 +476,41 @@ async def get_call_stats(
 # ============================================================================
 
 @router.get("/voip/config", response_model=VoIPConfigResponse | None)
-async def get_voip_config(
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
-):
-    """
-    Get VoIP configuration for tenant.
-    """
+async def get_voip_config(tenant_id: Annotated[UUID, Depends(get_current_tenant_id)]):
+    """Get VoIP configuration for tenant."""
     return None
 
 
 @router.post("/voip/config", response_model=VoIPConfigResponse, status_code=201)
 async def create_voip_config(
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
     request: CreateVoIPConfigRequest,
 ):
-    """
-    Create VoIP configuration.
-    """
+    """Create VoIP configuration."""
     return VoIPConfigResponse(
-        id=uuid4(),
-        tenant_id=tenant_id,
-        provider_type=request.provider_type,
-        host=request.host,
-        port=request.port,
-        username=request.username,
-        api_key=request.api_key,
-        is_active=request.is_active,
-        metadata=request.metadata,
-        created_at=datetime.utcnow(),
+        id=uuid4(), tenant_id=tenant_id, provider_type=request.provider_type,
+        host=request.host, port=request.port, username=request.username,
+        api_key=request.api_key, is_active=request.is_active,
+        metadata=request.metadata, created_at=datetime.utcnow(),
     )
 
 
 @router.post("/voip/sync", response_model=SyncVoIPLogsResponse)
 async def sync_voip_logs(
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
     request: SyncVoIPLogsRequest = None,
 ):
-    """
-    Sync call logs from VoIP system.
-    """
-    return SyncVoIPLogsResponse(
-        total_fetched=0,
-        new_records=0,
-        updated_records=0,
-    )
+    """Sync call logs from VoIP system."""
+    return SyncVoIPLogsResponse(total_fetched=0, new_records=0, updated_records=0)
 
 
 @router.post("/voip/import-json")
 async def import_voip_logs_from_json(
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
     file: UploadFile = File(...),
 ):
-    """
-    Import VoIP call logs from JSON file.
-    """
-    return {
-        "total_imported": 0,
-        "success_count": 0,
-        "error_count": 0,
-    }
+    """Import VoIP call logs from JSON file."""
+    return {"total_imported": 0, "success_count": 0, "error_count": 0}
 
 
 # ============================================================================
@@ -565,15 +520,12 @@ async def import_voip_logs_from_json(
 @router.get("/timeline/{contact_id}", response_model=CommunicationTimelineResponse)
 async def get_communication_timeline(
     contact_id: UUID,
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    sms_repo: Annotated[SMSLogRepository, Depends(get_sms_log_repository)],
+    call_repo: Annotated[CallLogRepository, Depends(get_call_log_repository)],
     limit: int = Query(default=50, ge=1, le=200),
 ):
-    """
-    Get communication timeline for a contact.
-    """
+    """Get communication timeline for a contact."""
     return CommunicationTimelineResponse(
-        contact_id=contact_id,
-        phone_number="989123456789",
-        events=[],
+        contact_id=contact_id, phone_number="", events=[],
     )
 

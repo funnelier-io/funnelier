@@ -10,6 +10,8 @@ from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
+from src.api.dependencies import get_current_tenant_id
+
 from .schemas import (
     ABTestResultsResponse,
     CampaignListResponse,
@@ -30,14 +32,6 @@ router = APIRouter(prefix="/campaigns", tags=["campaigns"])
 # Dependencies
 # ============================================================================
 
-async def get_current_tenant() -> UUID:
-    """Get current tenant from auth context."""
-    return UUID("00000000-0000-0000-0000-000000000001")
-
-
-async def get_current_user() -> UUID:
-    """Get current user from auth context."""
-    return UUID("00000000-0000-0000-0000-000000000002")
 
 
 # ============================================================================
@@ -46,7 +40,7 @@ async def get_current_user() -> UUID:
 
 @router.get("", response_model=CampaignListResponse)
 async def list_campaigns(
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
     status: str | None = Query(default=None),
@@ -101,7 +95,7 @@ async def list_campaigns(
 
 @router.post("", response_model=CampaignResponse, status_code=201)
 async def create_campaign(
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
     request: CreateCampaignRequest,
 ):
     """
@@ -127,7 +121,7 @@ async def create_campaign(
 @router.get("/{campaign_id}", response_model=CampaignResponse)
 async def get_campaign(
     campaign_id: UUID,
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
 ):
     """
     Get campaign by ID.
@@ -138,7 +132,7 @@ async def get_campaign(
 @router.put("/{campaign_id}", response_model=CampaignResponse)
 async def update_campaign(
     campaign_id: UUID,
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
     request: UpdateCampaignRequest,
 ):
     """
@@ -150,7 +144,7 @@ async def update_campaign(
 @router.delete("/{campaign_id}", status_code=204)
 async def delete_campaign(
     campaign_id: UUID,
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
 ):
     """
     Delete a campaign.
@@ -165,7 +159,7 @@ async def delete_campaign(
 @router.post("/{campaign_id}/start", response_model=CampaignResponse)
 async def start_campaign(
     campaign_id: UUID,
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
 ):
     """
     Start a campaign.
@@ -176,7 +170,7 @@ async def start_campaign(
 @router.post("/{campaign_id}/pause", response_model=CampaignResponse)
 async def pause_campaign(
     campaign_id: UUID,
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
 ):
     """
     Pause a running campaign.
@@ -187,7 +181,7 @@ async def pause_campaign(
 @router.post("/{campaign_id}/resume", response_model=CampaignResponse)
 async def resume_campaign(
     campaign_id: UUID,
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
 ):
     """
     Resume a paused campaign.
@@ -198,7 +192,7 @@ async def resume_campaign(
 @router.post("/{campaign_id}/cancel", response_model=CampaignResponse)
 async def cancel_campaign(
     campaign_id: UUID,
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
 ):
     """
     Cancel a campaign.
@@ -209,7 +203,7 @@ async def cancel_campaign(
 @router.post("/{campaign_id}/duplicate", response_model=CampaignResponse)
 async def duplicate_campaign(
     campaign_id: UUID,
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
     new_name: str | None = Query(default=None),
 ):
     """
@@ -225,7 +219,7 @@ async def duplicate_campaign(
 @router.get("/{campaign_id}/stats", response_model=CampaignStatsResponse)
 async def get_campaign_stats(
     campaign_id: UUID,
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
 ):
     """
     Get campaign statistics.
@@ -262,7 +256,7 @@ async def get_campaign_stats(
 @router.get("/{campaign_id}/recipients", response_model=CampaignRecipientsListResponse)
 async def get_campaign_recipients(
     campaign_id: UUID,
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
     status: str | None = Query(default=None),
@@ -281,7 +275,7 @@ async def get_campaign_recipients(
 @router.post("/{campaign_id}/preview-recipients")
 async def preview_campaign_recipients(
     campaign_id: UUID,
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
     limit: int = Query(default=100, ge=1, le=1000),
 ):
     """
@@ -299,7 +293,7 @@ async def preview_campaign_recipients(
 
 @router.post("/ab-test", response_model=CampaignResponse, status_code=201)
 async def create_ab_test_campaign(
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
     request: CreateABTestCampaignRequest,
 ):
     """
@@ -322,7 +316,7 @@ async def create_ab_test_campaign(
 @router.get("/{campaign_id}/ab-test-results", response_model=ABTestResultsResponse)
 async def get_ab_test_results(
     campaign_id: UUID,
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
 ):
     """
     Get A/B test results.
@@ -342,7 +336,7 @@ async def get_ab_test_results(
 @router.post("/{campaign_id}/select-winner")
 async def select_ab_test_winner(
     campaign_id: UUID,
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
     variant_name: str = Query(...),
 ):
     """
@@ -362,7 +356,7 @@ async def select_ab_test_winner(
 @router.get("/suggestions/for-segment/{segment}")
 async def get_campaign_suggestions_for_segment(
     segment: str,
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
 ):
     """
     Get campaign suggestions for an RFM segment.
@@ -410,7 +404,7 @@ async def get_campaign_suggestions_for_segment(
 
 @router.get("/templates/recommended")
 async def get_recommended_templates(
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
     segment: str | None = Query(default=None),
     campaign_type: str | None = Query(default=None),
 ):

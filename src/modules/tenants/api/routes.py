@@ -10,6 +10,8 @@ from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
+from src.api.dependencies import get_current_tenant_id, get_super_admin
+
 from .schemas import (
     BillingInfoResponse,
     CreateDataSourceConfigRequest,
@@ -31,25 +33,6 @@ from .schemas import (
 
 router = APIRouter(prefix="/tenants", tags=["tenants"])
 
-
-# ============================================================================
-# Dependencies
-# ============================================================================
-
-async def get_current_tenant() -> UUID:
-    """Get current tenant from auth context."""
-    return UUID("00000000-0000-0000-0000-000000000001")
-
-
-async def get_current_user() -> UUID:
-    """Get current user from auth context."""
-    return UUID("00000000-0000-0000-0000-000000000002")
-
-
-async def get_super_admin() -> bool:
-    """Check if current user is super admin."""
-    # This would be replaced with actual auth logic
-    return True
 
 
 # ============================================================================
@@ -108,7 +91,7 @@ async def create_tenant(
 @router.get("/{tenant_id}", response_model=TenantResponse)
 async def get_tenant(
     tenant_id: UUID,
-    current_tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    current_tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
     is_super_admin: Annotated[bool, Depends(get_super_admin)],
 ):
     """
@@ -124,7 +107,7 @@ async def get_tenant(
 @router.put("/{tenant_id}", response_model=TenantResponse)
 async def update_tenant(
     tenant_id: UUID,
-    current_tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    current_tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
     is_super_admin: Annotated[bool, Depends(get_super_admin)],
     request: UpdateTenantRequest,
 ):
@@ -157,7 +140,7 @@ async def delete_tenant(
 
 @router.get("/me", response_model=TenantResponse)
 async def get_current_tenant_info(
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
 ):
     """
     Get current tenant information.
@@ -192,7 +175,7 @@ async def get_current_tenant_info(
 
 @router.get("/me/settings", response_model=TenantSettingsResponse)
 async def get_tenant_settings(
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
 ):
     """
     Get tenant settings.
@@ -261,7 +244,7 @@ async def get_tenant_settings(
 
 @router.put("/me/settings", response_model=TenantSettingsResponse)
 async def update_tenant_settings(
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
     request: UpdateTenantSettingsRequest,
 ):
     """
@@ -285,7 +268,7 @@ async def update_tenant_settings(
 
 @router.get("/me/data-sources", response_model=DataSourceConfigListResponse)
 async def list_data_sources(
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
 ):
     """
     List configured data sources.
@@ -298,7 +281,7 @@ async def list_data_sources(
 
 @router.post("/me/data-sources", response_model=DataSourceConfigResponse, status_code=201)
 async def create_data_source(
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
     request: CreateDataSourceConfigRequest,
 ):
     """
@@ -322,7 +305,7 @@ async def create_data_source(
 @router.get("/me/data-sources/{source_id}", response_model=DataSourceConfigResponse)
 async def get_data_source(
     source_id: UUID,
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
 ):
     """
     Get data source configuration.
@@ -333,7 +316,7 @@ async def get_data_source(
 @router.delete("/me/data-sources/{source_id}", status_code=204)
 async def delete_data_source(
     source_id: UUID,
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
 ):
     """
     Delete a data source configuration.
@@ -344,7 +327,7 @@ async def delete_data_source(
 @router.post("/me/data-sources/{source_id}/test")
 async def test_data_source_connection(
     source_id: UUID,
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
 ):
     """
     Test connection to a data source.
@@ -359,7 +342,7 @@ async def test_data_source_connection(
 @router.post("/me/data-sources/{source_id}/sync")
 async def trigger_data_source_sync(
     source_id: UUID,
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
     full_sync: bool = Query(default=False),
 ):
     """
@@ -378,7 +361,7 @@ async def trigger_data_source_sync(
 
 @router.get("/me/integrations", response_model=IntegrationListResponse)
 async def list_integrations(
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
 ):
     """
     List configured integrations.
@@ -391,7 +374,7 @@ async def list_integrations(
 
 @router.post("/me/integrations", response_model=IntegrationResponse, status_code=201)
 async def create_integration(
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
     request: CreateIntegrationRequest,
 ):
     """
@@ -413,7 +396,7 @@ async def create_integration(
 @router.post("/me/integrations/{integration_id}/test")
 async def test_integration(
     integration_id: UUID,
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
 ):
     """
     Test an integration connection.
@@ -430,7 +413,7 @@ async def test_integration(
 
 @router.get("/me/usage", response_model=UsageStatsResponse)
 async def get_usage_stats(
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
 ):
     """
     Get current usage statistics.
@@ -455,7 +438,7 @@ async def get_usage_stats(
 
 @router.get("/me/billing", response_model=BillingInfoResponse)
 async def get_billing_info(
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
 ):
     """
     Get billing information.

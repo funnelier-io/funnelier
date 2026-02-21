@@ -10,6 +10,8 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
+from src.api.dependencies import get_current_tenant_id, get_current_user_id
+
 from .schemas import (
     AlertListResponse,
     AlertResponse,
@@ -33,22 +35,10 @@ from .schemas import (
 router = APIRouter(prefix="/analytics", tags=["analytics"])
 
 
-# Dependency for getting current tenant (placeholder)
-async def get_current_tenant() -> UUID:
-    """Get current tenant from auth context."""
-    # This would be replaced with actual auth logic
-    return UUID("00000000-0000-0000-0000-000000000001")
-
-
-# Dependency for getting current user (placeholder)
-async def get_current_user() -> UUID:
-    """Get current user from auth context."""
-    return UUID("00000000-0000-0000-0000-000000000002")
-
 
 @router.get("/funnel", response_model=FunnelMetricsResponse)
 async def get_funnel_metrics(
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
     start_date: datetime = Query(default=None),
     end_date: datetime = Query(default=None),
     include_comparison: bool = Query(default=True),
@@ -102,7 +92,7 @@ async def get_funnel_metrics(
 
 @router.get("/funnel/trend", response_model=FunnelTrendResponse)
 async def get_funnel_trend(
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
     start_date: datetime = Query(default=None),
     end_date: datetime = Query(default=None),
 ):
@@ -138,7 +128,7 @@ async def get_funnel_trend(
 
 @router.get("/funnel/by-source")
 async def get_funnel_by_source(
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
     start_date: datetime = Query(default=None),
     end_date: datetime = Query(default=None),
 ):
@@ -164,7 +154,7 @@ async def get_funnel_by_source(
 
 @router.get("/reports/daily", response_model=DailyReportResponse)
 async def get_daily_report(
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
     report_date: datetime = Query(default=None),
 ):
     """
@@ -206,7 +196,7 @@ async def get_daily_report(
 
 @router.get("/reports/weekly", response_model=WeeklyReportResponse)
 async def get_weekly_report(
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
     week_end: datetime = Query(default=None),
 ):
     """
@@ -233,7 +223,7 @@ async def get_weekly_report(
 
 @router.get("/salespeople", response_model=SalespersonListResponse)
 async def get_salespeople_metrics(
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
     start_date: datetime = Query(default=None),
     end_date: datetime = Query(default=None),
 ):
@@ -279,7 +269,7 @@ async def get_salespeople_metrics(
 
 @router.get("/cohorts", response_model=CohortAnalysisResponse)
 async def get_cohort_analysis(
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
     cohort_type: str = Query(default="weekly"),  # weekly, monthly
     num_cohorts: int = Query(default=8, ge=1, le=24),
 ):
@@ -313,7 +303,7 @@ async def get_cohort_analysis(
 
 @router.get("/optimization", response_model=OptimizationResponse)
 async def get_optimization_opportunities(
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
     start_date: datetime = Query(default=None),
     end_date: datetime = Query(default=None),
 ):
@@ -348,7 +338,7 @@ async def get_optimization_opportunities(
 
 @router.get("/alerts", response_model=AlertListResponse)
 async def get_alerts(
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
     severity: str | None = Query(default=None),
     acknowledged: bool | None = Query(default=None),
     limit: int = Query(default=50, ge=1, le=100),
@@ -366,7 +356,7 @@ async def get_alerts(
 
 @router.post("/alerts/rules", response_model=AlertRuleSchema)
 async def create_alert_rule(
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
     request: CreateAlertRuleRequest,
 ):
     """
@@ -390,8 +380,8 @@ async def create_alert_rule(
 @router.post("/alerts/{alert_id}/acknowledge", response_model=AlertResponse)
 async def acknowledge_alert(
     alert_id: UUID,
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
-    user_id: Annotated[UUID, Depends(get_current_user)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
+    user_id: Annotated[UUID, Depends(get_current_user_id)],
 ):
     """
     Acknowledge an alert.

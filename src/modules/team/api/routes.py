@@ -10,6 +10,8 @@ from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
+from src.api.dependencies import get_current_tenant_id
+
 from .schemas import (
     ActivityLogListResponse,
     AssignmentRuleListResponse,
@@ -33,19 +35,6 @@ from .schemas import (
 router = APIRouter(prefix="/team", tags=["team"])
 
 
-# ============================================================================
-# Dependencies
-# ============================================================================
-
-async def get_current_tenant() -> UUID:
-    """Get current tenant from auth context."""
-    return UUID("00000000-0000-0000-0000-000000000001")
-
-
-async def get_current_user() -> UUID:
-    """Get current user from auth context."""
-    return UUID("00000000-0000-0000-0000-000000000002")
-
 
 # ============================================================================
 # Salesperson CRUD Endpoints
@@ -53,7 +42,7 @@ async def get_current_user() -> UUID:
 
 @router.get("/salespeople", response_model=SalespersonListResponse)
 async def list_salespeople(
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
     is_active: bool | None = Query(default=None),
     region: str | None = Query(default=None),
 ):
@@ -180,7 +169,7 @@ async def list_salespeople(
 
 @router.post("/salespeople", response_model=SalespersonResponse, status_code=201)
 async def create_salesperson(
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
     request: CreateSalespersonRequest,
 ):
     """
@@ -205,7 +194,7 @@ async def create_salesperson(
 @router.get("/salespeople/{salesperson_id}", response_model=SalespersonResponse)
 async def get_salesperson(
     salesperson_id: UUID,
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
 ):
     """
     Get salesperson by ID.
@@ -216,7 +205,7 @@ async def get_salesperson(
 @router.put("/salespeople/{salesperson_id}", response_model=SalespersonResponse)
 async def update_salesperson(
     salesperson_id: UUID,
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
     request: UpdateSalespersonRequest,
 ):
     """
@@ -228,7 +217,7 @@ async def update_salesperson(
 @router.delete("/salespeople/{salesperson_id}", status_code=204)
 async def delete_salesperson(
     salesperson_id: UUID,
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
 ):
     """
     Delete a salesperson.
@@ -242,7 +231,7 @@ async def delete_salesperson(
 
 @router.get("/performance", response_model=TeamPerformanceResponse)
 async def get_team_performance(
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
     start_date: datetime = Query(default=None),
     end_date: datetime = Query(default=None),
 ):
@@ -288,7 +277,7 @@ async def get_team_performance(
 @router.get("/salespeople/{salesperson_id}/performance", response_model=SalespersonPerformanceResponse)
 async def get_salesperson_performance(
     salesperson_id: UUID,
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
     start_date: datetime = Query(default=None),
     end_date: datetime = Query(default=None),
 ):
@@ -335,7 +324,7 @@ async def get_salesperson_performance(
 
 @router.get("/performance/comparison", response_model=PerformanceComparisonResponse)
 async def compare_salesperson_performance(
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
     salesperson_ids: list[UUID] = Query(default=[]),
     start_date: datetime = Query(default=None),
     end_date: datetime = Query(default=None),
@@ -358,7 +347,7 @@ async def compare_salesperson_performance(
 
 @router.get("/performance/leaderboard")
 async def get_performance_leaderboard(
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
     metric: str = Query(default="revenue"),  # revenue, conversions, calls, contact_rate
     start_date: datetime = Query(default=None),
     end_date: datetime = Query(default=None),
@@ -392,7 +381,7 @@ async def get_performance_leaderboard(
 @router.get("/salespeople/{salesperson_id}/activities", response_model=ActivityLogListResponse)
 async def get_salesperson_activities(
     salesperson_id: UUID,
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
     activity_type: str | None = Query(default=None),
@@ -413,7 +402,7 @@ async def get_salesperson_activities(
 @router.get("/salespeople/{salesperson_id}/daily-summary", response_model=list[DailyActivitySummaryResponse])
 async def get_salesperson_daily_summary(
     salesperson_id: UUID,
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
     days: int = Query(default=7, ge=1, le=30),
 ):
     """
@@ -428,7 +417,7 @@ async def get_salesperson_daily_summary(
 
 @router.get("/assignment-rules", response_model=AssignmentRuleListResponse)
 async def list_assignment_rules(
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
 ):
     """
     List assignment rules.
@@ -441,7 +430,7 @@ async def list_assignment_rules(
 
 @router.post("/assignment-rules", response_model=AssignmentRuleResponse, status_code=201)
 async def create_assignment_rule(
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
     request: CreateAssignmentRuleRequest,
 ):
     """
@@ -464,7 +453,7 @@ async def create_assignment_rule(
 @router.delete("/assignment-rules/{rule_id}", status_code=204)
 async def delete_assignment_rule(
     rule_id: UUID,
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
 ):
     """
     Delete an assignment rule.
@@ -478,7 +467,7 @@ async def delete_assignment_rule(
 
 @router.get("/targets", response_model=SalesTargetListResponse)
 async def list_sales_targets(
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
     salesperson_id: UUID | None = Query(default=None),
     period_type: str | None = Query(default=None),
     is_current: bool = Query(default=True),
@@ -494,7 +483,7 @@ async def list_sales_targets(
 
 @router.post("/targets", response_model=SalesTargetResponse, status_code=201)
 async def create_sales_target(
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
     request: CreateSalesTargetRequest,
 ):
     """
@@ -518,7 +507,7 @@ async def create_sales_target(
 
 @router.get("/targets/summary", response_model=TeamTargetSummaryResponse)
 async def get_team_target_summary(
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
     period_type: str = Query(default="monthly"),
 ):
     """

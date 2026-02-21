@@ -10,6 +10,8 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
+from src.api.dependencies import get_current_tenant_id
+
 from src.core.domain import RFMSegment
 
 from ..domain import SEGMENT_RECOMMENDATIONS
@@ -39,14 +41,10 @@ router = APIRouter(prefix="/segmentation", tags=["segmentation"])
 
 
 # Dependency for getting current tenant (placeholder)
-async def get_current_tenant() -> UUID:
-    """Get current tenant from auth context."""
-    return UUID("00000000-0000-0000-0000-000000000001")
-
 
 @router.get("/config", response_model=RFMConfigResponse)
 async def get_rfm_config(
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
 ):
     """
     Get RFM configuration for tenant.
@@ -59,7 +57,7 @@ async def get_rfm_config(
 
 @router.put("/config", response_model=RFMConfigResponse)
 async def update_rfm_config(
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
     request: UpdateRFMConfigRequest,
 ):
     """
@@ -88,7 +86,7 @@ async def update_rfm_config(
 
 @router.post("/analyze", response_model=RFMAnalysisResultResponse)
 async def run_rfm_analysis(
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
     request: RunRFMAnalysisRequest = None,
 ):
     """
@@ -133,7 +131,7 @@ async def run_rfm_analysis(
 
 @router.get("/distribution", response_model=SegmentDistributionResponse)
 async def get_segment_distribution(
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
 ):
     """
     Get current segment distribution.
@@ -161,7 +159,7 @@ async def get_segment_distribution(
 
 @router.get("/profiles", response_model=RFMProfileListResponse)
 async def get_rfm_profiles(
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
     segment: str | None = Query(default=None),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
@@ -181,7 +179,7 @@ async def get_rfm_profiles(
 @router.get("/profiles/{contact_id}", response_model=RFMProfileResponse)
 async def get_contact_rfm_profile(
     contact_id: UUID,
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
 ):
     """
     Get RFM profile for a specific contact.
@@ -266,7 +264,7 @@ async def get_segment_recommendation(segment: str):
 @router.get("/products/{contact_id}", response_model=ContactRecommendationsResponse)
 async def get_contact_product_recommendations(
     contact_id: UUID,
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
     limit: int = Query(default=5, ge=1, le=20),
 ):
     """
@@ -299,7 +297,7 @@ async def get_contact_product_recommendations(
 
 @router.get("/migration-report", response_model=MigrationReportResponse)
 async def get_segment_migration_report(
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
     months: int = Query(default=1, ge=1, le=12),
 ):
     """
@@ -327,7 +325,7 @@ async def get_segment_migration_report(
 
 @router.post("/campaign-contacts", response_model=CampaignContactsResponse)
 async def get_contacts_for_campaign(
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
     request: CampaignContactsRequest,
 ):
     """
@@ -342,7 +340,7 @@ async def get_contacts_for_campaign(
 
 @router.get("/high-priority", response_model=RFMProfileListResponse)
 async def get_high_priority_contacts(
-    tenant_id: Annotated[UUID, Depends(get_current_tenant)],
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
     limit: int = Query(default=50, ge=1, le=100),
 ):
     """
