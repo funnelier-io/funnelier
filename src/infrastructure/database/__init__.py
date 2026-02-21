@@ -2,7 +2,7 @@
 Database Infrastructure Module
 """
 
-from .models import (
+from .base_models import (
     AuditMixin,
     BaseModel,
     FullAuditModel,

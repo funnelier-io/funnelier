@@ -15,7 +15,7 @@ class DatabaseSettings(BaseSettings):
 
     model_config = SettingsConfigDict(env_prefix="DATABASE_")
 
-    url: str = "postgresql+asyncpg://funnelier:funnelier@localhost:5432/funnelier"
+    url: str = "postgresql+asyncpg://funnelier:funnelier@localhost:5433/funnelier"
     pool_size: int = 20
     max_overflow: int = 10
     echo: bool = False

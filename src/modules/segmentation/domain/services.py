@@ -10,12 +10,13 @@ from uuid import UUID
 from src.core.domain import RFMSegment
 
 from .entities import (
-    ContactRFMScore,
-    ProductRecommendation,
+    ContactRFMProfile,
+    RFMAnalysisResult,
     RFMConfig,
-    SegmentDefinition,
-    SegmentStats,
-    TemplateRecommendation,
+    RFMScore,
+    SEGMENT_RECOMMENDATIONS,
+    SegmentRecommendation,
+    SegmentSummary,
 )
 
 
@@ -24,74 +25,168 @@ class RFMCalculationService:
     Service for calculating RFM scores.
     """
 
-    def __init__(self, config: RFMConfig):
-        self.config = config
+    def __init__(self, config: RFMConfig | None = None):
+        self.config = config or RFMConfig(tenant_id=UUID("00000000-0000-0000-0000-000000000000"))
 
     def calculate_score(
+        self,
+        days_since_last_purchase: int | None,
+        purchase_count: int,
+        total_spend: float,
+    ) -> RFMScore:
+        """
+        Calculate RFM score for given metrics.
+        """
+        r = self.config.calculate_recency_score(days_since_last_purchase)
+        f = self.config.calculate_frequency_score(purchase_count)
+        m = self.config.calculate_monetary_score(total_spend)
+
+        return RFMScore(recency=r, frequency=f, monetary=m)
+
+    def calculate_profile(
         self,
         tenant_id: UUID,
         contact_id: UUID,
         phone_number: str,
         last_purchase_date: datetime | None,
-        total_purchases: int,
-        total_spend: int,
-        first_purchase_date: datetime | None = None,
+        purchase_count: int,
+        total_spend: float,
         current_date: datetime | None = None,
-    ) -> ContactRFMScore:
+    ) -> ContactRFMProfile:
         """
-        Calculate RFM score for a contact.
+        Calculate complete RFM profile for a contact.
         """
         if current_date is None:
             current_date = datetime.utcnow()
 
-        score = ContactRFMScore(
+        # Calculate days since last purchase
+        days_since = None
+        if last_purchase_date:
+            days_since = (current_date - last_purchase_date).days
+
+        # Calculate RFM score
+        rfm_score = self.calculate_score(days_since, purchase_count, total_spend)
+
+        # Determine segment using core RFMSegment
+        segment = RFMSegment.from_rfm_score(
+            rfm_score.recency, rfm_score.frequency, rfm_score.monetary
+        )
+
+        # Calculate AOV
+        aov = total_spend / purchase_count if purchase_count > 0 else 0.0
+
+        # Create profile
+        profile = ContactRFMProfile(
             tenant_id=tenant_id,
             contact_id=contact_id,
             phone_number=phone_number,
             last_purchase_date=last_purchase_date,
-            first_purchase_date=first_purchase_date,
-            total_purchases=total_purchases,
+            days_since_last_purchase=days_since,
+            purchase_count=purchase_count,
             total_spend=total_spend,
+            average_order_value=aov,
+            rfm_score=rfm_score,
+            segment=segment,
         )
 
-        score.calculate(self.config, current_date)
-        return score
+        return profile
 
     def batch_calculate(
         self,
         contacts_data: list[dict[str, Any]],
         current_date: datetime | None = None,
-    ) -> list[ContactRFMScore]:
+    ) -> list[ContactRFMProfile]:
         """
-        Calculate RFM scores for multiple contacts.
+        Calculate RFM profiles for multiple contacts.
 
         contacts_data should contain:
         - tenant_id
         - contact_id
         - phone_number
-        - last_purchase_date
-        - total_purchases
+        - last_purchase_date (optional)
+        - purchase_count
         - total_spend
-        - first_purchase_date (optional)
         """
         if current_date is None:
             current_date = datetime.utcnow()
 
         results = []
         for data in contacts_data:
-            score = self.calculate_score(
+            profile = self.calculate_profile(
                 tenant_id=data["tenant_id"],
                 contact_id=data["contact_id"],
                 phone_number=data["phone_number"],
                 last_purchase_date=data.get("last_purchase_date"),
-                total_purchases=data.get("total_purchases", 0),
-                total_spend=data.get("total_spend", 0),
-                first_purchase_date=data.get("first_purchase_date"),
+                purchase_count=data.get("purchase_count", 0),
+                total_spend=data.get("total_spend", 0.0),
                 current_date=current_date,
             )
-            results.append(score)
+            results.append(profile)
 
         return results
+
+    def analyze_segments(
+        self,
+        tenant_id: UUID,
+        profiles: list[ContactRFMProfile],
+        current_date: datetime | None = None,
+    ) -> RFMAnalysisResult:
+        """
+        Perform segment analysis on a list of profiles.
+        """
+        if current_date is None:
+            current_date = datetime.utcnow()
+
+        result = RFMAnalysisResult(
+            tenant_id=tenant_id,
+            analysis_date=current_date,
+            period_months=self.config.analysis_period_months,
+            total_contacts_analyzed=len(profiles),
+        )
+
+        # Group by segment
+        segment_data: dict[RFMSegment, list[ContactRFMProfile]] = {}
+        for profile in profiles:
+            if profile.segment:
+                if profile.segment not in segment_data:
+                    segment_data[profile.segment] = []
+                segment_data[profile.segment].append(profile)
+
+                if profile.purchase_count > 0:
+                    result.contacts_with_purchases += 1
+                    result.total_revenue += profile.total_spend
+
+        # Calculate segment summaries
+        for segment, segment_profiles in segment_data.items():
+            count = len(segment_profiles)
+            total_revenue = sum(p.total_spend for p in segment_profiles)
+            total_frequency = sum(p.purchase_count for p in segment_profiles)
+            total_recency = sum(
+                p.days_since_last_purchase or 0 for p in segment_profiles
+            )
+
+            summary = SegmentSummary(
+                segment=segment,
+                contact_count=count,
+                percentage_of_total=(count / len(profiles) * 100) if profiles else 0,
+                total_revenue=total_revenue,
+                average_order_value=total_revenue / total_frequency if total_frequency > 0 else 0,
+                average_frequency=total_frequency / count if count > 0 else 0,
+                average_recency_days=total_recency / count if count > 0 else 0,
+            )
+            result.segment_summaries.append(summary)
+
+        # Sort by segment priority
+        result.segment_summaries.sort(
+            key=lambda s: s.segment.priority if hasattr(s.segment, 'priority') else 0,
+            reverse=True,
+        )
+
+        # Calculate average CLV
+        if result.contacts_with_purchases > 0:
+            result.average_clv = result.total_revenue / result.contacts_with_purchases
+
+        return result
 
 
 class SegmentRecommendationService:
@@ -99,199 +194,117 @@ class SegmentRecommendationService:
     Service for generating recommendations based on segments.
     """
 
-    # Default recommendations per segment
-    SEGMENT_ACTIONS = {
-        RFMSegment.CHAMPIONS: {
-            "action": "Reward loyalty, exclusive offers, ask for referrals",
-            "sms_categories": ["vip", "exclusive", "referral"],
-            "product_strategy": "premium",
-            "urgency": "low",
-        },
-        RFMSegment.LOYAL: {
-            "action": "Upsell higher value products, loyalty programs",
-            "sms_categories": ["upsell", "loyalty", "new_product"],
-            "product_strategy": "upsell",
-            "urgency": "low",
-        },
-        RFMSegment.POTENTIAL_LOYALIST: {
-            "action": "Engage more, offer membership benefits",
-            "sms_categories": ["engagement", "membership", "discount"],
-            "product_strategy": "cross_sell",
-            "urgency": "medium",
-        },
-        RFMSegment.NEW_CUSTOMERS: {
-            "action": "Welcome sequence, onboarding, build relationship",
-            "sms_categories": ["welcome", "onboarding", "first_purchase"],
-            "product_strategy": "entry_level",
-            "urgency": "high",
-        },
-        RFMSegment.PROMISING: {
-            "action": "Create brand awareness, offer trials",
-            "sms_categories": ["awareness", "trial", "introduction"],
-            "product_strategy": "popular",
-            "urgency": "medium",
-        },
-        RFMSegment.NEED_ATTENTION: {
-            "action": "Limited time offers, reactivate interest",
-            "sms_categories": ["limited_offer", "reminder", "discount"],
-            "product_strategy": "best_sellers",
-            "urgency": "high",
-        },
-        RFMSegment.ABOUT_TO_SLEEP: {
-            "action": "Win-back campaigns, personalized offers",
-            "sms_categories": ["winback", "personal", "special_offer"],
-            "product_strategy": "previously_purchased",
-            "urgency": "high",
-        },
-        RFMSegment.AT_RISK: {
-            "action": "Urgent reactivation, personal outreach",
-            "sms_categories": ["urgent", "personal", "vip_comeback"],
-            "product_strategy": "high_margin",
-            "urgency": "critical",
-        },
-        RFMSegment.CANT_LOSE: {
-            "action": "Aggressive win-back, survey for feedback",
-            "sms_categories": ["survey", "feedback", "exclusive_comeback"],
-            "product_strategy": "premium",
-            "urgency": "critical",
-        },
-        RFMSegment.HIBERNATING: {
-            "action": "Cost-effective reactivation attempts",
-            "sms_categories": ["reactivation", "bulk_discount"],
-            "product_strategy": "clearance",
-            "urgency": "low",
-        },
-        RFMSegment.LOST: {
-            "action": "Final win-back attempt or remove from active list",
-            "sms_categories": ["final_attempt", "unsubscribe"],
-            "product_strategy": "none",
-            "urgency": "low",
-        },
-    }
-
-    def get_action_for_segment(self, segment: RFMSegment) -> dict[str, Any]:
-        """Get recommended action for a segment."""
-        return self.SEGMENT_ACTIONS.get(segment, {})
-
-    def get_template_categories_for_segment(
-        self,
-        segment: RFMSegment,
-    ) -> list[str]:
-        """Get recommended SMS template categories for a segment."""
-        action = self.SEGMENT_ACTIONS.get(segment, {})
-        return action.get("sms_categories", [])
-
-    def get_product_strategy_for_segment(
-        self,
-        segment: RFMSegment,
-    ) -> str:
-        """Get product recommendation strategy for a segment."""
-        action = self.SEGMENT_ACTIONS.get(segment, {})
-        return action.get("product_strategy", "popular")
-
-    def get_urgency_for_segment(self, segment: RFMSegment) -> str:
-        """Get action urgency for a segment."""
-        action = self.SEGMENT_ACTIONS.get(segment, {})
-        return action.get("urgency", "medium")
-
-    def recommend_products(
-        self,
-        segment: RFMSegment,
-        available_products: list[dict[str, Any]],
-        purchase_history: list[dict[str, Any]] | None = None,
-        limit: int = 5,
-    ) -> list[ProductRecommendation]:
+    def get_recommendation(self, segment: RFMSegment) -> SegmentRecommendation:
         """
-        Recommend products for a segment.
-
-        Products should have: id, name, category, price, tags
-        Purchase history should have: product_id, quantity, date
+        Get marketing recommendation for a segment.
         """
-        strategy = self.get_product_strategy_for_segment(segment)
-        recommendations = []
+        return SEGMENT_RECOMMENDATIONS.get(
+            segment,
+            SEGMENT_RECOMMENDATIONS[RFMSegment.NEED_ATTENTION],
+        )
 
-        for product in available_products[:limit]:
-            score = self._calculate_product_score(
-                product,
-                strategy,
-                segment,
-                purchase_history,
-            )
-            if score > 0:
-                recommendations.append(
-                    ProductRecommendation(
-                        segment=segment.value,
-                        product_id=product["id"],
-                        product_name=product["name"],
-                        product_category=product.get("category", ""),
-                        score=score,
-                        reason=self._get_recommendation_reason(strategy, segment),
-                    )
-                )
+    def get_all_recommendations(self) -> dict[RFMSegment, SegmentRecommendation]:
+        """
+        Get all segment recommendations.
+        """
+        return SEGMENT_RECOMMENDATIONS
 
-        # Sort by score descending
-        recommendations.sort(key=lambda x: x.score, reverse=True)
-        return recommendations[:limit]
+    def get_message_types_for_segment(self, segment: RFMSegment) -> list[str]:
+        """
+        Get recommended message types for a segment.
+        """
+        rec = self.get_recommendation(segment)
+        return rec.recommended_message_types
 
-    def _calculate_product_score(
-        self,
-        product: dict[str, Any],
-        strategy: str,
-        segment: RFMSegment,
-        purchase_history: list[dict[str, Any]] | None,
-    ) -> float:
-        """Calculate recommendation score for a product."""
-        base_score = 1.0
+    def get_products_for_segment(self, segment: RFMSegment) -> list[str]:
+        """
+        Get recommended product categories for a segment.
+        """
+        rec = self.get_recommendation(segment)
+        return rec.recommended_products
 
-        # Strategy-based scoring
-        if strategy == "premium":
-            # Higher price = higher score for premium strategy
-            price = product.get("price", 0)
-            if price > 500_000_000:  # 500M+
-                base_score *= 2.0
-            elif price > 100_000_000:  # 100M+
-                base_score *= 1.5
-        elif strategy == "entry_level":
-            # Lower price = higher score
-            price = product.get("price", 0)
-            if price < 50_000_000:  # < 50M
-                base_score *= 2.0
-            elif price < 100_000_000:  # < 100M
-                base_score *= 1.5
-        elif strategy == "previously_purchased":
-            # Boost if in purchase history
-            if purchase_history:
-                product_id = str(product.get("id"))
-                for purchase in purchase_history:
-                    if str(purchase.get("product_id")) == product_id:
-                        base_score *= 2.5
-                        break
+    def get_channel_priority(self, segment: RFMSegment) -> list[str]:
+        """
+        Get channel priority for a segment.
+        """
+        rec = self.get_recommendation(segment)
+        return rec.channel_priority
 
-        # Segment tag matching
-        product_tags = product.get("tags", [])
-        recommended_segments = product.get("recommended_segments", [])
-        if segment.value in recommended_segments:
-            base_score *= 1.5
-
-        return base_score
-
-    def _get_recommendation_reason(
-        self,
-        strategy: str,
-        segment: RFMSegment,
-    ) -> str:
-        """Get human-readable reason for recommendation."""
-        reasons = {
-            "premium": "محصول ممتاز برای مشتریان VIP",
-            "upsell": "ارتقاء از محصولات قبلی",
-            "cross_sell": "مکمل خریدهای قبلی",
-            "entry_level": "مناسب برای شروع",
-            "popular": "پرفروش‌ترین محصولات",
-            "best_sellers": "محصولات محبوب",
-            "previously_purchased": "بر اساس خریدهای قبلی",
-            "high_margin": "پیشنهاد ویژه",
-            "clearance": "تخفیف ویژه",
-            "none": "",
+    def get_discount_strategy(self, segment: RFMSegment) -> dict[str, Any]:
+        """
+        Get discount strategy for a segment.
+        """
+        rec = self.get_recommendation(segment)
+        return {
+            "allowed": rec.discount_allowed,
+            "max_percent": rec.max_discount_percent,
         }
-        return reasons.get(strategy, "پیشنهاد شده")
 
+    def prioritize_contacts(
+        self,
+        profiles: list[ContactRFMProfile],
+    ) -> list[ContactRFMProfile]:
+        """
+        Sort contacts by marketing priority.
+        """
+        return sorted(
+            profiles,
+            key=lambda p: (
+                p.segment.priority if p.segment else 0,
+                p.rfm_score.segment_score if p.rfm_score else 0,
+            ),
+            reverse=True,
+        )
+
+    def segment_contacts_for_campaign(
+        self,
+        profiles: list[ContactRFMProfile],
+        campaign_type: str,
+    ) -> list[ContactRFMProfile]:
+        """
+        Filter contacts suitable for a campaign type.
+        """
+        suitable_segments = self._get_segments_for_campaign_type(campaign_type)
+
+        return [
+            p for p in profiles
+            if p.segment in suitable_segments
+        ]
+
+    def _get_segments_for_campaign_type(self, campaign_type: str) -> list[RFMSegment]:
+        """
+        Get segments suitable for a campaign type.
+        """
+        campaign_segments = {
+            "promotional": [
+                RFMSegment.POTENTIAL_LOYALIST,
+                RFMSegment.PROMISING,
+                RFMSegment.NEW_CUSTOMERS,
+            ],
+            "retention": [
+                RFMSegment.NEED_ATTENTION,
+                RFMSegment.ABOUT_TO_SLEEP,
+                RFMSegment.AT_RISK,
+            ],
+            "win_back": [
+                RFMSegment.AT_RISK,
+                RFMSegment.CANT_LOSE,
+                RFMSegment.HIBERNATING,
+            ],
+            "vip": [
+                RFMSegment.CHAMPIONS,
+                RFMSegment.LOYAL,
+            ],
+            "upsell": [
+                RFMSegment.LOYAL,
+                RFMSegment.POTENTIAL_LOYALIST,
+                RFMSegment.CHAMPIONS,
+            ],
+            "new_product": [
+                RFMSegment.CHAMPIONS,
+                RFMSegment.LOYAL,
+                RFMSegment.POTENTIAL_LOYALIST,
+            ],
+        }
+
+        return campaign_segments.get(campaign_type, list(RFMSegment))

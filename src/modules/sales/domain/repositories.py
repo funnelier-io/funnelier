@@ -36,7 +36,7 @@ class IProductRepository(ITenantRepository[Product, UUID]):
         pass
 
     @abstractmethod
-    async def get_for_segment(
+    async def get_by_segment(
         self,
         segment: str,
     ) -> list[Product]:
@@ -63,6 +63,11 @@ class IProductRepository(ITenantRepository[Product, UUID]):
 
 class IInvoiceRepository(IAggregateRepository[Invoice, UUID]):
     """Repository interface for invoices."""
+
+    @abstractmethod
+    async def count_by_tenant(self, tenant_id: UUID) -> int:
+        """Count invoices for a tenant."""
+        pass
 
     @abstractmethod
     async def get_by_number(self, invoice_number: str) -> Invoice | None:

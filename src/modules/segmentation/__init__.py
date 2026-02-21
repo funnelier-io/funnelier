@@ -1,25 +1,32 @@
 """
 Segmentation Module
+RFM Analysis and Customer Segmentation
 """
 
 from .domain import (
-    ContactRFMScore,
-    ProductRecommendation,
+    ContactRFMProfile,
+    RFMAnalysisResult,
     RFMConfig,
-    SegmentDefinition,
-    SegmentStats,
-    TemplateRecommendation,
+    RFMScore,
+    RFMSegment,
+    SEGMENT_RECOMMENDATIONS,
+    SegmentRecommendation,
+    SegmentSummary,
     RFMCalculationService,
     SegmentRecommendationService,
 )
 
 __all__ = [
+    # Entities
+    "RFMScore",
+    "RFMSegment",
+    "ContactRFMProfile",
     "RFMConfig",
-    "ContactRFMScore",
-    "SegmentDefinition",
-    "SegmentStats",
-    "ProductRecommendation",
-    "TemplateRecommendation",
+    "SegmentRecommendation",
+    "SEGMENT_RECOMMENDATIONS",
+    "SegmentSummary",
+    "RFMAnalysisResult",
+    # Services
     "RFMCalculationService",
     "SegmentRecommendationService",
 ]

@@ -16,6 +16,14 @@ class ISMSLogRepository(IAggregateRepository[SMSLog, UUID]):
     """Repository interface for SMS logs."""
 
     @abstractmethod
+    async def get_by_provider_id(
+        self,
+        provider_message_id: str,
+    ) -> SMSLog | None:
+        """Get SMS log by provider message ID."""
+        pass
+
+    @abstractmethod
     async def get_by_phone(
         self,
         phone_number: str,
@@ -167,7 +175,7 @@ class ISMSTemplateRepository(ITenantRepository[SMSTemplate, UUID]):
         pass
 
     @abstractmethod
-    async def get_for_segment(
+    async def get_by_segment(
         self,
         segment: str,
     ) -> list[SMSTemplate]:
