@@ -115,11 +115,13 @@ def create_app() -> FastAPI:
                 "campaigns": "/api/v1/campaigns",
                 "team": "/api/v1/team",
                 "tenants": "/api/v1/tenants",
+                "auth": "/api/v1/auth",
             },
         }
 
     # Register routers
     from src.api.routes import (
+        auth_router,
         leads_router,
         communications_router,
         sales_router,
@@ -135,6 +137,7 @@ def create_app() -> FastAPI:
     app.include_router(dashboard_router, tags=["Dashboard"])
 
     # API Routes
+    app.include_router(auth_router, prefix="/api/v1", tags=["Auth"])
     app.include_router(leads_router, prefix="/api/v1/leads", tags=["Leads"])
     app.include_router(communications_router, prefix="/api/v1/communications", tags=["Communications"])
     app.include_router(sales_router, prefix="/api/v1/sales", tags=["Sales"])

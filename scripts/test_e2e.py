@@ -185,13 +185,54 @@ def main():
     s, r = api("GET", "/api/v1/campaigns")
     check(34, "List campaigns", s, 200)
 
+    # ── Auth Module ──
+    print("\n── Authentication Module ──")
+
+    s, r = api("POST", "/api/v1/auth/login", {
+        "username": "admin", "password": "admin1234"
+    })
+    token = r.get("access_token", "")
+    check(35, "Login (admin)", s, 200, f"-> role={r.get('user',{}).get('role')}")
+
+    s, r = api("POST", "/api/v1/auth/login", {
+        "username": "admin", "password": "wrongpass"
+    })
+    check(36, "Login (bad password)", s, 401, f"-> {r.get('detail','')[:30]}")
+
+    # Use token for /me
+    url = BASE + "/api/v1/auth/me"
+    req = urllib.request.Request(url)
+    req.add_header("Authorization", f"Bearer {token}")
+    try:
+        with urllib.request.urlopen(req) as resp:
+            me_data = json.loads(resp.read())
+            s = resp.status
+    except urllib.error.HTTPError as e:
+        s = e.code
+        me_data = {}
+    check(37, "Get /me (authed)", s, 200, f"-> user={me_data.get('username')}")
+
+    s, r = api("GET", "/api/v1/auth/me")
+    check(38, "Get /me (no token)", s, 401)
+
+    s, r = api("POST", "/api/v1/auth/register", {
+        "email": "e2e@test.ir", "username": "e2euser",
+        "password": "testpass1234", "full_name": "E2E User",
+    })
+    check(39, "Register new user", s, 201, f"-> role={r.get('user',{}).get('role')}")
+
+    s, r = api("POST", "/api/v1/auth/refresh", {
+        "refresh_token": "invalid.token.here"
+    })
+    check(40, "Refresh (bad token)", s, 401)
+
     # ── Dashboard ──
     print("\n── Web Dashboard ──")
     req = urllib.request.Request(BASE + "/")
     with urllib.request.urlopen(req) as resp:
         html = resp.read().decode()
         has_title = "فانلیر" in html
-    check(35, "Dashboard HTML", resp.status, 200, f"-> Persian title={has_title}")
+    check(41, "Dashboard HTML", resp.status, 200, f"-> Persian title={has_title}")
 
     # ── Summary ──
     print("\n" + "=" * 65)

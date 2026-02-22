@@ -278,3 +278,141 @@ class TestDashboard:
         assert "فانلیر" in resp.text
         assert "<!DOCTYPE html>" in resp.text
 
+
+class TestAuthAPI:
+    """Integration tests for Authentication module."""
+
+    @pytest.mark.asyncio(loop_scope="session")
+    async def test_login_with_default_admin(self, client):
+        resp = await client.post("/api/v1/auth/login", json={
+            "username": "admin", "password": "admin1234"
+        })
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["token_type"] == "bearer"
+        assert data["access_token"]
+        assert data["refresh_token"]
+        assert data["user"]["role"] == "super_admin"
+
+    @pytest.mark.asyncio(loop_scope="session")
+    async def test_login_bad_credentials(self, client):
+        resp = await client.post("/api/v1/auth/login", json={
+            "username": "admin", "password": "wrongpassword"
+        })
+        assert resp.status_code == 401
+
+    @pytest.mark.asyncio(loop_scope="session")
+    async def test_me_without_token(self, client):
+        resp = await client.get("/api/v1/auth/me")
+        assert resp.status_code == 401
+
+    @pytest.mark.asyncio(loop_scope="session")
+    async def test_me_with_token(self, client):
+        login = await client.post("/api/v1/auth/login", json={
+            "username": "admin", "password": "admin1234"
+        })
+        token = login.json()["access_token"]
+        resp = await client.get("/api/v1/auth/me", headers={
+            "Authorization": f"Bearer {token}"
+        })
+        assert resp.status_code == 200
+        assert resp.json()["username"] == "admin"
+
+    @pytest.mark.asyncio(loop_scope="session")
+    async def test_register_new_user(self, client):
+        uname = f"testuser_{uuid4().hex[:6]}"
+        resp = await client.post("/api/v1/auth/register", json={
+            "email": f"{uname}@test.ir",
+            "username": uname,
+            "password": "testpass1234",
+            "full_name": "کاربر تست",
+        })
+        assert resp.status_code == 201
+        data = resp.json()
+        assert data["user"]["role"] == "viewer"
+        assert data["access_token"]
+
+    @pytest.mark.asyncio(loop_scope="session")
+    async def test_register_duplicate_username(self, client):
+        uname = f"dupuser_{uuid4().hex[:6]}"
+        await client.post("/api/v1/auth/register", json={
+            "email": f"{uname}@test.ir", "username": uname,
+            "password": "testpass1234",
+        })
+        resp = await client.post("/api/v1/auth/register", json={
+            "email": f"{uname}2@test.ir", "username": uname,
+            "password": "testpass1234",
+        })
+        assert resp.status_code == 409
+
+    @pytest.mark.asyncio(loop_scope="session")
+    async def test_refresh_token(self, client):
+        login = await client.post("/api/v1/auth/login", json={
+            "username": "admin", "password": "admin1234"
+        })
+        refresh = login.json()["refresh_token"]
+        resp = await client.post("/api/v1/auth/refresh", json={
+            "refresh_token": refresh
+        })
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["access_token"]
+        assert data["refresh_token"]
+        assert data["token_type"] == "bearer"
+        # Verify the new token works
+        me = await client.get("/api/v1/auth/me", headers={
+            "Authorization": f"Bearer {data['access_token']}"
+        })
+        assert me.status_code == 200
+
+    @pytest.mark.asyncio(loop_scope="session")
+    async def test_change_password(self, client):
+        # Register
+        uname = f"pwduser_{uuid4().hex[:6]}"
+        reg = await client.post("/api/v1/auth/register", json={
+            "email": f"{uname}@test.ir", "username": uname,
+            "password": "oldpass1234",
+        })
+        token = reg.json()["access_token"]
+
+        # Change password
+        resp = await client.put("/api/v1/auth/me/password", json={
+            "old_password": "oldpass1234", "new_password": "newpass1234"
+        }, headers={"Authorization": f"Bearer {token}"})
+        assert resp.status_code == 200
+
+        # Login with new password
+        resp = await client.post("/api/v1/auth/login", json={
+            "username": uname, "password": "newpass1234"
+        })
+        assert resp.status_code == 200
+
+    @pytest.mark.asyncio(loop_scope="session")
+    async def test_list_users_requires_admin(self, client):
+        # Register a viewer
+        uname = f"viewer_{uuid4().hex[:6]}"
+        reg = await client.post("/api/v1/auth/register", json={
+            "email": f"{uname}@test.ir", "username": uname,
+            "password": "viewerpass1",
+        })
+        token = reg.json()["access_token"]
+
+        # Viewer can't list users
+        resp = await client.get("/api/v1/auth/users", headers={
+            "Authorization": f"Bearer {token}"
+        })
+        assert resp.status_code == 403
+
+        # Admin can
+        login = await client.post("/api/v1/auth/login", json={
+            "username": "admin", "password": "admin1234"
+        })
+        admin_token = login.json()["access_token"]
+        resp = await client.get("/api/v1/auth/users", headers={
+            "Authorization": f"Bearer {admin_token}"
+        })
+        assert resp.status_code == 200
+        assert isinstance(resp.json(), list)
+
+
+
