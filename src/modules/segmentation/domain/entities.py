@@ -147,17 +147,19 @@ class RFMConfig(TenantEntity[UUID]):
     def calculate_frequency_score(self, count: int) -> int:
         """Calculate frequency score based on purchase count."""
         thresholds = sorted(self.frequency_thresholds)
+        # Score 5 for >= highest threshold, down to 2 for >= lowest, 1 for below all
         for i, threshold in enumerate(reversed(thresholds)):
             if count >= threshold:
-                return 5 - (len(thresholds) - 1 - i)
+                return len(thresholds) + 1 - i
         return 1
 
     def calculate_monetary_score(self, total: float) -> int:
         """Calculate monetary score based on total spend."""
         thresholds = sorted(self.monetary_thresholds)
+        # Score 5 for >= highest threshold, down to 2 for >= lowest, 1 for below all
         for i, threshold in enumerate(reversed(thresholds)):
             if total >= threshold:
-                return 5 - (len(thresholds) - 1 - i)
+                return len(thresholds) + 1 - i
         return 1
 
 

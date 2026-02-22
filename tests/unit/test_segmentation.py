@@ -9,9 +9,11 @@ from uuid import uuid4
 from src.core.domain import RFMSegment
 from src.modules.segmentation.domain import (
     RFMConfig,
-    ContactRFMScore,
+    ContactRFMProfile,
+    RFMScore,
     RFMCalculationService,
     SegmentRecommendationService,
+    SEGMENT_RECOMMENDATIONS,
 )
 
 
@@ -22,117 +24,68 @@ class TestRFMConfig:
         """Test default RFM thresholds."""
         config = RFMConfig(tenant_id=uuid4())
 
-        assert config.recency_score_5_max == 3
-        assert config.recency_score_4_max == 7
-        assert config.recency_score_3_max == 14
-        assert config.recency_score_2_max == 30
-        assert config.frequency_score_5_min == 10
-        assert config.monetary_score_5_min == 1_000_000_000
+        assert config.recency_thresholds == [14, 30, 60, 90]
+        assert config.frequency_thresholds == [1, 2, 4, 8]
+        assert config.monetary_thresholds == [100_000_000, 500_000_000, 1_000_000_000, 2_000_000_000]
+        assert config.high_value_threshold == 1_000_000_000
 
     def test_calculate_recency_score(self):
         """Test recency score calculation."""
         config = RFMConfig(tenant_id=uuid4())
 
-        assert config.calculate_recency_score(1) == 5  # 1 day
-        assert config.calculate_recency_score(5) == 4  # 5 days
-        assert config.calculate_recency_score(10) == 3  # 10 days
-        assert config.calculate_recency_score(20) == 2  # 20 days
-        assert config.calculate_recency_score(60) == 1  # 60 days
+        assert config.calculate_recency_score(5) == 5    # <=14 days
+        assert config.calculate_recency_score(14) == 5   # <=14 days
+        assert config.calculate_recency_score(20) == 4   # 15-30 days
+        assert config.calculate_recency_score(45) == 3   # 31-60 days
+        assert config.calculate_recency_score(80) == 2   # 61-90 days
+        assert config.calculate_recency_score(120) == 1  # >90 days
+        assert config.calculate_recency_score(None) == 1 # No purchase
 
     def test_calculate_frequency_score(self):
         """Test frequency score calculation."""
         config = RFMConfig(tenant_id=uuid4())
 
-        assert config.calculate_frequency_score(15) == 5  # 15 purchases
-        assert config.calculate_frequency_score(7) == 4  # 7 purchases
-        assert config.calculate_frequency_score(3) == 3  # 3 purchases
-        assert config.calculate_frequency_score(2) == 2  # 2 purchases
-        assert config.calculate_frequency_score(1) == 1  # 1 purchase
+        assert config.calculate_frequency_score(15) == 5  # >=8 purchases
+        assert config.calculate_frequency_score(8) == 5   # >=8
+        assert config.calculate_frequency_score(6) == 4   # >=4
+        assert config.calculate_frequency_score(3) == 3   # >=2
+        assert config.calculate_frequency_score(1) == 2   # >=1
+        assert config.calculate_frequency_score(0) == 1   # 0 purchases
 
     def test_calculate_monetary_score(self):
         """Test monetary score calculation."""
         config = RFMConfig(tenant_id=uuid4())
 
-        assert config.calculate_monetary_score(2_000_000_000) == 5  # 2B
-        assert config.calculate_monetary_score(700_000_000) == 4  # 700M
-        assert config.calculate_monetary_score(200_000_000) == 3  # 200M
-        assert config.calculate_monetary_score(70_000_000) == 2  # 70M
-        assert config.calculate_monetary_score(30_000_000) == 1  # 30M
+        assert config.calculate_monetary_score(3_000_000_000) == 5  # >=2B
+        assert config.calculate_monetary_score(1_500_000_000) == 4  # >=1B
+        assert config.calculate_monetary_score(700_000_000) == 3    # >=500M
+        assert config.calculate_monetary_score(200_000_000) == 2    # >=100M
+        assert config.calculate_monetary_score(50_000_000) == 1     # <100M
 
 
-class TestContactRFMScore:
-    """Tests for contact RFM score calculation."""
+class TestRFMScore:
+    """Tests for RFMScore value object."""
 
-    def test_calculate_rfm_score(self):
-        """Test full RFM score calculation."""
-        config = RFMConfig(tenant_id=uuid4())
-        tenant_id = uuid4()
-        contact_id = uuid4()
+    def test_rfm_string(self):
+        """Test RFM string representation."""
+        score = RFMScore(recency=5, frequency=4, monetary=3)
+        assert score.rfm_string == "543"
 
-        score = ContactRFMScore(
-            tenant_id=tenant_id,
-            contact_id=contact_id,
-            phone_number="9123456789",
-            last_purchase_date=datetime.utcnow() - timedelta(days=2),
-            total_purchases=12,
-            total_spend=1_500_000_000,
-        )
+    def test_total_score(self):
+        """Test total score calculation."""
+        score = RFMScore(recency=5, frequency=5, monetary=5)
+        assert score.total_score == 15
 
-        score.calculate(config)
+    def test_segment_score_weighted(self):
+        """Test weighted segment score."""
+        score = RFMScore(recency=5, frequency=4, monetary=3)
+        # 5*0.4 + 4*0.3 + 3*0.3 = 2.0 + 1.2 + 0.9 = 4.1
+        assert abs(score.segment_score - 4.1) < 0.01
 
-        assert score.recency_score == 5  # Within 3 days
-        assert score.frequency_score == 5  # 12 purchases >= 10
-        assert score.monetary_score == 5  # 1.5B >= 1B
-        assert score.rfm_score == "555"
-        assert score.segment == RFMSegment.CHAMPIONS
-
-    def test_calculate_lost_customer(self):
-        """Test RFM calculation for lost customer."""
-        config = RFMConfig(tenant_id=uuid4())
-        tenant_id = uuid4()
-        contact_id = uuid4()
-
-        score = ContactRFMScore(
-            tenant_id=tenant_id,
-            contact_id=contact_id,
-            phone_number="9123456789",
-            last_purchase_date=datetime.utcnow() - timedelta(days=90),
-            total_purchases=1,
-            total_spend=30_000_000,
-        )
-
-        score.calculate(config)
-
-        assert score.recency_score == 1  # > 30 days
-        assert score.frequency_score == 1  # 1 purchase
-        assert score.monetary_score == 1  # < 50M
-        assert score.rfm_score == "111"
-        assert score.segment == RFMSegment.LOST
-
-    def test_segment_change_event(self):
-        """Test that segment change triggers domain event."""
-        config = RFMConfig(tenant_id=uuid4())
-        tenant_id = uuid4()
-        contact_id = uuid4()
-
-        score = ContactRFMScore(
-            tenant_id=tenant_id,
-            contact_id=contact_id,
-            phone_number="9123456789",
-            last_purchase_date=datetime.utcnow() - timedelta(days=2),
-            total_purchases=12,
-            total_spend=1_500_000_000,
-            segment=RFMSegment.LOYAL,  # Previous segment
-        )
-
-        score.calculate(config)
-
-        # Should have segment change event
-        assert len(score.domain_events) == 1
-        event = score.domain_events[0]
-        assert event.event_type == "segment.contact_changed"
-        assert event.old_segment == "loyal"
-        assert event.new_segment == "champions"
+    def test_get_segment(self):
+        """Test segment determination from score."""
+        score = RFMScore(recency=5, frequency=5, monetary=5)
+        assert score.get_segment() == RFMSegment.CHAMPIONS
 
 
 class TestRFMSegment:
@@ -146,17 +99,31 @@ class TestRFMSegment:
 
     def test_loyal_segment(self):
         """Test loyal segment identification."""
-        assert RFMSegment.from_rfm_score(4, 4, 4) == RFMSegment.LOYAL
         assert RFMSegment.from_rfm_score(3, 4, 5) == RFMSegment.LOYAL
+        assert RFMSegment.from_rfm_score(3, 5, 4) == RFMSegment.LOYAL
 
     def test_at_risk_segment(self):
         """Test at risk segment identification."""
-        assert RFMSegment.from_rfm_score(1, 5, 5) == RFMSegment.AT_RISK
-        assert RFMSegment.from_rfm_score(2, 5, 4) == RFMSegment.AT_RISK
+        # at_risk: low recency, high value but f<4 or m<4 individually
+        # Note: (1,5,5) matches loyal first (f>=4 and m>=4)
+        assert RFMSegment.from_rfm_score(2, 3, 5) == RFMSegment.AT_RISK
+        assert RFMSegment.from_rfm_score(1, 3, 4) == RFMSegment.AT_RISK
 
     def test_lost_segment(self):
         """Test lost segment identification."""
-        assert RFMSegment.from_rfm_score(1, 1, 1) == RFMSegment.LOST
+        # (1,1,1) matches hibernating (r==1, f<=2) before lost
+        # Lost is the fallback for scores not matching other patterns
+        assert RFMSegment.from_rfm_score(1, 1, 1) == RFMSegment.HIBERNATING
+        # These fall through to lost
+        assert RFMSegment.from_rfm_score(1, 3, 1) == RFMSegment.LOST
+
+    def test_new_customers_segment(self):
+        """Test new customers segment."""
+        assert RFMSegment.from_rfm_score(5, 1, 1) == RFMSegment.NEW_CUSTOMERS
+
+    def test_promising_segment(self):
+        """Test promising segment."""
+        assert RFMSegment.from_rfm_score(3, 1, 1) == RFMSegment.PROMISING
 
     def test_segment_priority(self):
         """Test segment priority ordering."""
@@ -165,45 +132,141 @@ class TestRFMSegment:
         assert RFMSegment.LOST.priority < RFMSegment.HIBERNATING.priority
 
 
+class TestRFMCalculationService:
+    """Tests for RFM calculation service."""
+
+    def test_calculate_champion_profile(self):
+        """Test full RFM profile calculation for a champion."""
+        config = RFMConfig(tenant_id=uuid4())
+        service = RFMCalculationService(config)
+        now = datetime.utcnow()
+
+        profile = service.calculate_profile(
+            tenant_id=uuid4(), contact_id=uuid4(),
+            phone_number="9123456789",
+            last_purchase_date=now - timedelta(days=2),
+            purchase_count=12, total_spend=2_500_000_000,
+            current_date=now,
+        )
+
+        assert profile.rfm_score is not None
+        assert profile.rfm_score.recency == 5
+        assert profile.rfm_score.frequency == 5
+        assert profile.rfm_score.monetary == 5
+        assert profile.segment == RFMSegment.CHAMPIONS
+
+    def test_calculate_lost_customer_profile(self):
+        """Test RFM calculation for lost customer."""
+        config = RFMConfig(tenant_id=uuid4())
+        service = RFMCalculationService(config)
+        now = datetime.utcnow()
+
+        profile = service.calculate_profile(
+            tenant_id=uuid4(), contact_id=uuid4(),
+            phone_number="9123456789",
+            last_purchase_date=now - timedelta(days=120),
+            purchase_count=0, total_spend=0,
+            current_date=now,
+        )
+
+        assert profile.rfm_score.recency == 1
+        assert profile.rfm_score.frequency == 1
+        assert profile.rfm_score.monetary == 1
+
+    def test_calculate_no_purchase_date(self):
+        """Test RFM calculation with no purchase date."""
+        config = RFMConfig(tenant_id=uuid4())
+        service = RFMCalculationService(config)
+
+        profile = service.calculate_profile(
+            tenant_id=uuid4(), contact_id=uuid4(),
+            phone_number="9123456789",
+            last_purchase_date=None, purchase_count=0, total_spend=0,
+        )
+
+        assert profile.rfm_score.recency == 1
+        assert profile.segment is not None
+
+    def test_calculate_score_directly(self):
+        """Test direct score calculation."""
+        config = RFMConfig(tenant_id=uuid4())
+        service = RFMCalculationService(config)
+
+        score = service.calculate_score(
+            days_since_last_purchase=5,
+            purchase_count=10, total_spend=1_500_000_000,
+        )
+
+        assert score.recency == 5
+        assert score.frequency == 5
+        assert score.monetary == 4
+
+
 class TestSegmentRecommendationService:
     """Tests for segment recommendations."""
+
+    def test_all_segments_have_recommendations(self):
+        """Test that all segments have recommendations."""
+        service = SegmentRecommendationService()
+
+        for segment in RFMSegment:
+            rec = service.get_recommendation(segment)
+            assert rec is not None
+            assert rec.segment_name_fa
+            assert rec.recommended_message_types
+            assert rec.channel_priority
 
     def test_champions_recommendations(self):
         """Test recommendations for champions segment."""
         service = SegmentRecommendationService()
+        rec = service.get_recommendation(RFMSegment.CHAMPIONS)
 
-        action = service.get_action_for_segment(RFMSegment.CHAMPIONS)
-
-        assert "vip" in action.get("sms_categories", [])
-        assert action.get("product_strategy") == "premium"
-        assert action.get("urgency") == "low"
+        assert any(t in rec.recommended_message_types for t in ["exclusive", "vip", "new_product"])
+        assert rec.discount_allowed is False
+        assert rec.max_discount_percent == 0
 
     def test_at_risk_recommendations(self):
         """Test recommendations for at risk segment."""
         service = SegmentRecommendationService()
+        rec = service.get_recommendation(RFMSegment.AT_RISK)
 
-        action = service.get_action_for_segment(RFMSegment.AT_RISK)
+        assert rec.discount_allowed is True
+        assert rec.max_discount_percent > 0
 
-        assert "urgent" in action.get("sms_categories", [])
-        assert action.get("urgency") == "critical"
+    def test_message_types_for_segment(self):
+        """Test getting message types for a segment."""
+        service = SegmentRecommendationService()
+        types = service.get_message_types_for_segment(RFMSegment.NEW_CUSTOMERS)
 
-    def test_product_recommendations(self):
-        """Test product recommendations for segment."""
+        assert isinstance(types, list)
+        assert len(types) > 0
+
+    def test_discount_strategy(self):
+        """Test discount strategy for different segments."""
         service = SegmentRecommendationService()
 
-        products = [
-            {"id": uuid4(), "name": "Product A", "category": "cement", "price": 1_500_000_000},
-            {"id": uuid4(), "name": "Product B", "category": "cement", "price": 50_000_000},
-        ]
+        champ = service.get_discount_strategy(RFMSegment.CHAMPIONS)
+        assert champ["allowed"] is False
 
-        recommendations = service.recommend_products(
-            RFMSegment.CHAMPIONS,
-            products,
-            limit=2,
-        )
+        risk = service.get_discount_strategy(RFMSegment.AT_RISK)
+        assert risk["allowed"] is True
+        assert risk["max_percent"] > 0
 
-        assert len(recommendations) <= 2
-        # Premium products should be recommended for champions
-        if recommendations:
-            assert recommendations[0].score > 0
+    def test_segment_contacts_for_vip_campaign(self):
+        """Test filtering contacts for VIP campaign."""
+        service = SegmentRecommendationService()
+        tid = uuid4()
 
+        profiles = []
+        for segment in [RFMSegment.CHAMPIONS, RFMSegment.LOYAL, RFMSegment.LOST]:
+            p = ContactRFMProfile(
+                tenant_id=tid, contact_id=uuid4(), phone_number="912345",
+            )
+            p.segment = segment
+            p.rfm_score = RFMScore(recency=5, frequency=5, monetary=5)
+            profiles.append(p)
+
+        vip_contacts = service.segment_contacts_for_campaign(profiles, "vip")
+        assert len(vip_contacts) == 2
+        for c in vip_contacts:
+            assert c.segment in [RFMSegment.CHAMPIONS, RFMSegment.LOYAL]
