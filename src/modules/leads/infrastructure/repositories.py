@@ -199,6 +199,161 @@ class ContactRepository(SqlAlchemyRepository[ContactModel, Contact], IContactRep
         await self._session.flush()
         return result.rowcount
 
+    # ─────────────── Analytics Query Helpers ───────────────
+
+    async def get_stage_counts(self, tenant_id: UUID | None = None) -> dict[str, int]:
+        """Count contacts per funnel stage."""
+        tid = tenant_id or self._tenant_id
+        stmt = (
+            select(ContactModel.current_stage, func.count())
+            .where(ContactModel.tenant_id == tid)
+            .group_by(ContactModel.current_stage)
+        )
+        result = await self._session.execute(stmt)
+        return {row[0]: row[1] for row in result.all()}
+
+    async def count_new_contacts(
+        self, tenant_id: UUID | None = None,
+        start_date: datetime | None = None,
+        end_date: datetime | None = None,
+    ) -> int:
+        """Count contacts created within a date range."""
+        tid = tenant_id or self._tenant_id
+        stmt = (
+            select(func.count())
+            .select_from(ContactModel)
+            .where(ContactModel.tenant_id == tid)
+        )
+        if start_date:
+            stmt = stmt.where(ContactModel.created_at >= start_date)
+        if end_date:
+            stmt = stmt.where(ContactModel.created_at <= end_date)
+        result = await self._session.execute(stmt)
+        return result.scalar_one()
+
+    async def get_contacts_with_stages(
+        self, tenant_id: UUID | None = None,
+        start_date: datetime | None = None,
+        end_date: datetime | None = None,
+    ) -> list[dict]:
+        """Get contacts with their stage info for funnel calculation."""
+        tid = tenant_id or self._tenant_id
+        stmt = (
+            select(
+                ContactModel.id,
+                ContactModel.current_stage,
+                ContactModel.category_name,
+                ContactModel.source_name,
+                ContactModel.assigned_to,
+                ContactModel.total_revenue,
+                ContactModel.created_at,
+            )
+            .where(ContactModel.tenant_id == tid)
+        )
+        if start_date:
+            stmt = stmt.where(ContactModel.created_at >= start_date)
+        if end_date:
+            stmt = stmt.where(ContactModel.created_at <= end_date)
+        result = await self._session.execute(stmt)
+        return [
+            {
+                "id": row.id,
+                "current_stage": row.current_stage,
+                "category_name": row.category_name,
+                "source_name": row.source_name,
+                "assigned_to": row.assigned_to,
+                "total_revenue": row.total_revenue,
+                "created_at": row.created_at,
+            }
+            for row in result.all()
+        ]
+
+    async def get_contacts_grouped_by_source(
+        self, tenant_id: UUID | None = None,
+        start_date: datetime | None = None,
+        end_date: datetime | None = None,
+    ) -> dict[str, list[dict]]:
+        """Get contacts grouped by source_name."""
+        contacts = await self.get_contacts_with_stages(tenant_id, start_date, end_date)
+        groups: dict[str, list[dict]] = {}
+        for c in contacts:
+            src = c.get("source_name") or "unknown"
+            groups.setdefault(src, []).append(c)
+        return groups
+
+    async def get_contacts_grouped_by_category(
+        self, tenant_id: UUID | None = None,
+        start_date: datetime | None = None,
+        end_date: datetime | None = None,
+    ) -> dict[str, list[dict]]:
+        """Get contacts grouped by category_name."""
+        contacts = await self.get_contacts_with_stages(tenant_id, start_date, end_date)
+        groups: dict[str, list[dict]] = {}
+        for c in contacts:
+            cat = c.get("category_name") or "uncategorized"
+            groups.setdefault(cat, []).append(c)
+        return groups
+
+    async def get_stage_transitions(
+        self, tenant_id: UUID | None = None,
+        start_date: datetime | None = None,
+        end_date: datetime | None = None,
+    ) -> list[dict]:
+        """Get stage transition counts (simplified — based on current stage distribution)."""
+        # In a full implementation this would track stage change events.
+        # For now, derive from current stage distribution.
+        stage_counts = await self.get_stage_counts(tenant_id)
+        stages = [
+            "lead_acquired", "sms_sent", "sms_delivered",
+            "call_attempted", "call_answered", "invoice_issued", "payment_received",
+        ]
+        transitions = []
+        for i in range(len(stages) - 1):
+            from_count = stage_counts.get(stages[i], 0)
+            to_count = stage_counts.get(stages[i + 1], 0)
+            transitions.append({
+                "from_stage": stages[i],
+                "to_stage": stages[i + 1],
+                "count": min(from_count, to_count),
+            })
+        return transitions
+
+    async def get_salespeople(self, tenant_id: UUID | None = None) -> list[dict]:
+        """Get distinct salespeople from assigned contacts."""
+        tid = tenant_id or self._tenant_id
+        stmt = (
+            select(
+                ContactModel.assigned_to,
+                func.count().label("contact_count"),
+            )
+            .where(ContactModel.tenant_id == tid)
+            .where(ContactModel.assigned_to.isnot(None))
+            .group_by(ContactModel.assigned_to)
+        )
+        result = await self._session.execute(stmt)
+        return [
+            {"salesperson_id": row.assigned_to, "contact_count": row.contact_count}
+            for row in result.all()
+        ]
+
+    async def get_rfm_distribution(self, tenant_id: UUID | None = None) -> dict[str, int]:
+        """Count contacts per RFM segment."""
+        tid = tenant_id or self._tenant_id
+        stmt = (
+            select(ContactModel.rfm_segment, func.count())
+            .where(ContactModel.tenant_id == tid)
+            .where(ContactModel.rfm_segment.isnot(None))
+            .group_by(ContactModel.rfm_segment)
+        )
+        result = await self._session.execute(stmt)
+        return {row[0]: row[1] for row in result.all()}
+
+    async def get_contacts_by_rfm_segment(
+        self, segment: str, skip: int = 0, limit: int = 100,
+    ) -> list[Contact]:
+        """Get contacts in a specific RFM segment."""
+        return await self.get_by_segment(segment, skip, limit)
+
 
 class LeadCategoryRepository(SqlAlchemyRepository[LeadCategoryModel, LeadCategory], ILeadCategoryRepository):
     """SQLAlchemy implementation of ILeadCategoryRepository."""

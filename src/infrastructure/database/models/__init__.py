@@ -24,6 +24,14 @@ from .sales import (
     InvoiceLineItemModel,
     PaymentModel,
 )
+from .analytics import (
+    FunnelSnapshotModel,
+    AlertRuleModel,
+    AlertInstanceModel,
+)
+from .etl import (
+    ImportLogModel,
+)
 
 __all__ = [
     # Tenants
@@ -45,5 +53,11 @@ __all__ = [
     "InvoiceModel",
     "InvoiceLineItemModel",
     "PaymentModel",
+    # Analytics
+    "FunnelSnapshotModel",
+    "AlertRuleModel",
+    "AlertInstanceModel",
+    # ETL
+    "ImportLogModel",
 ]
 

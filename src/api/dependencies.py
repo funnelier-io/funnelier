@@ -136,3 +136,39 @@ async def get_payment_repository(
     from src.modules.sales.infrastructure.repositories import PaymentRepository
     return PaymentRepository(session, tenant_id)
 
+
+# ──────────────────── Analytics Repositories ────────────────────
+
+
+async def get_funnel_snapshot_repository(
+    session: AsyncSession = Depends(get_db_session),
+    tenant_id: UUID = Depends(get_current_tenant_id),
+):
+    from src.modules.analytics.infrastructure.repositories import FunnelSnapshotRepository
+    return FunnelSnapshotRepository(session, tenant_id)
+
+
+async def get_alert_rule_repository(
+    session: AsyncSession = Depends(get_db_session),
+    tenant_id: UUID = Depends(get_current_tenant_id),
+):
+    from src.modules.analytics.infrastructure.repositories import AlertRuleRepository
+    return AlertRuleRepository(session, tenant_id)
+
+
+async def get_alert_instance_repository(
+    session: AsyncSession = Depends(get_db_session),
+    tenant_id: UUID = Depends(get_current_tenant_id),
+):
+    from src.modules.analytics.infrastructure.repositories import AlertInstanceRepository
+    return AlertInstanceRepository(session, tenant_id)
+
+
+async def get_import_log_repository(
+    session: AsyncSession = Depends(get_db_session),
+    tenant_id: UUID = Depends(get_current_tenant_id),
+):
+    from src.modules.analytics.infrastructure.repositories import ImportLogRepository
+    return ImportLogRepository(session, tenant_id)
+
+

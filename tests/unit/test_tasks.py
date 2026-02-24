@@ -52,6 +52,51 @@ class TestPhoneNormalization:
         from src.infrastructure.messaging.tasks import _normalize_phone
         assert _normalize_phone("0912-345-6789") == "9123456789"
 
+    def test_normalize_float_format(self):
+        from src.infrastructure.messaging.tasks import _normalize_phone
+        # Excel sometimes stores numbers as floats
+        assert _normalize_phone("9.12645e+09") == "9126450000"
+        assert _normalize_phone(9126450549) == "9126450549"
+
+
+# ─── Duration Parsing ────────────────────────────────────────────────────────
+
+class TestDurationParsing:
+    """Tests for call duration text parsing."""
+
+    def test_parse_seconds(self):
+        from src.infrastructure.messaging.tasks import _parse_duration
+        assert _parse_duration("366 sec") == 366
+
+    def test_parse_zero_sec(self):
+        from src.infrastructure.messaging.tasks import _parse_duration
+        assert _parse_duration("0 sec") == 0
+
+    def test_parse_minutes_and_seconds(self):
+        from src.infrastructure.messaging.tasks import _parse_duration
+        assert _parse_duration("2 min 30 sec") == 150
+
+    def test_parse_minutes_only(self):
+        from src.infrastructure.messaging.tasks import _parse_duration
+        assert _parse_duration("3 min") == 180
+
+    def test_parse_integer_string(self):
+        from src.infrastructure.messaging.tasks import _parse_duration
+        assert _parse_duration("120") == 120
+
+    def test_parse_none(self):
+        from src.infrastructure.messaging.tasks import _parse_duration
+        assert _parse_duration(None) == 0
+
+    def test_parse_nan(self):
+        import math
+        from src.infrastructure.messaging.tasks import _parse_duration
+        assert _parse_duration(float("nan")) == 0
+
+    def test_parse_garbage(self):
+        from src.infrastructure.messaging.tasks import _parse_duration
+        assert _parse_duration("hello") == 0
+
 
 # ─── Helper Function Tests ──────────────────────────────────────────────────
 

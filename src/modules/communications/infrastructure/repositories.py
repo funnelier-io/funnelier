@@ -251,6 +251,32 @@ class CallLogRepository(SqlAlchemyRepository[CallLogModel, CallLog], ICallLogRep
         await self._session.flush()
         return success, len(errors_list), errors_list
 
+    async def get_daily_stats(self, start_date: datetime, end_date: datetime) -> dict[str, Any]:
+        """Get call stats for a specific day/period — used by daily report."""
+        base = (
+            select(
+                func.count().label("total"),
+                func.sum(CallLogModel.duration_seconds).label("total_duration"),
+                func.count().filter(CallLogModel.status == "answered").label("answered"),
+                func.count().filter(CallLogModel.is_successful.is_(True)).label("successful"),
+            )
+            .where(CallLogModel.tenant_id == self._tenant_id)
+            .where(CallLogModel.call_start >= start_date)
+            .where(CallLogModel.call_start <= end_date)
+        )
+        result = await self._session.execute(base)
+        row = result.one()
+        total = row.total or 0
+        answered = row.answered or 0
+        successful = row.successful or 0
+        return {
+            "total_today": total,
+            "answered_today": answered,
+            "successful_today": successful,
+            "answer_rate": round(answered / total, 3) if total > 0 else 0.0,
+            "success_rate": round(successful / total, 3) if total > 0 else 0.0,
+        }
+
 
 class SMSTemplateRepository(SqlAlchemyRepository[SMSTemplateModel, SMSTemplate], ISMSTemplateRepository):
     """SQLAlchemy implementation of ISMSTemplateRepository."""

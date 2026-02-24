@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # PostgreSQL Database
   postgres:
@@ -24,7 +22,7 @@ services:
     image: redis:7-alpine
     container_name: funnelier-redis
     ports:
-      - "6379:6379"
+      - "6384:6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -43,7 +41,7 @@ services:
     volumes:
       - mongodb_data:/data/db
     ports:
-      - "27017:27017"
+      - "27019:27017"
 
   # Backend API
   api:

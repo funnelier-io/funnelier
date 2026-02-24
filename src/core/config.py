@@ -26,7 +26,7 @@ class RedisSettings(BaseSettings):
 
     model_config = SettingsConfigDict(env_prefix="REDIS_")
 
-    url: str = "redis://localhost:6379/0"
+    url: str = "redis://localhost:6384/0"
     cache_ttl: int = 3600  # 1 hour default
 
 
@@ -35,8 +35,8 @@ class CelerySettings(BaseSettings):
 
     model_config = SettingsConfigDict(env_prefix="CELERY_")
 
-    broker_url: str = "redis://localhost:6379/1"
-    result_backend: str = "redis://localhost:6379/2"
+    broker_url: str = "redis://localhost:6384/1"
+    result_backend: str = "redis://localhost:6384/2"
 
 
 class MongoDBSettings(BaseSettings):

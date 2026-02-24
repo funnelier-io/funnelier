@@ -282,19 +282,99 @@ Basic dashboard with:
 - `POST /api/v1/import/analytics/rfm-recalculate` - Trigger RFM recalculation
 
 ### Test Coverage
-- 136 tests passing (91 unit + 45 integration)
+- 100 unit tests passing
 - Task registration, phone normalization, helper functions, Celery config
 - WebSocket ConnectionManager (connect, disconnect, broadcast, tenant isolation)
-- Integration tests for all new HTTP endpoints
+- Integration tests for all HTTP endpoints
+
+---
+
+## Phase 7: Wire Real Data, Fix ETL Pipeline, Analytics & Segmentation
+
+### ETL Pipeline Fixes (`src/modules/etl/api/routes.py`, `src/infrastructure/messaging/tasks.py`)
+- Fixed all broken imports: `src.infrastructure.database.repositories.leads` → `src.modules.leads.infrastructure.repositories`
+- Fixed all broken imports: `src.infrastructure.database.repositories.communications` → `src.modules.communications.infrastructure.repositories`
+- Fixed all broken imports: `src.infrastructure.database.repositories.sales` → `src.modules.sales.infrastructure.repositories`
+- Replaced `repo.create(dict)` / `repo.find_by_field(...)` with proper domain entity construction + `repo.add(entity)` / `repo.get_by_phone(phone)`
+- All 6 sync ETL routes, 6 Celery tasks, and 1 batch route now use correct repositories with tenant-scoped sessions
+- Construct proper `Contact`, `CallLog`, `SMSLog`, `Invoice` domain entities in all import paths
+
+### New Database Models + Migration
+- `FunnelSnapshotModel` — daily funnel stage counts, conversion rates, revenue (`funnel_snapshots` table)
+- `AlertRuleModel` — configurable alert rules with thresholds, severity, notification channels (`alert_rules` table)
+- `AlertInstanceModel` — triggered alert instances with status tracking (`alert_instances` table)
+- `ImportLogModel` — import job tracking with status, results, timing (`import_logs` table)
+- Alembic migration `b0a6f0d6de83` adds all 4 tables with proper indexes and constraints
+
+### Analytics Wired to Real Database (`src/modules/analytics/api/routes.py`)
+- `GET /api/v1/analytics/funnel` — real stage counts from contacts table
+- `GET /api/v1/analytics/funnel/trend` — snapshots from `funnel_snapshots` table
+- `GET /api/v1/analytics/funnel/by-source` — contacts grouped by source_name
+- `GET /api/v1/analytics/reports/daily` — real lead counts, SMS stats, call stats
+- `GET /api/v1/analytics/reports/weekly` — real week-over-week comparison
+- `GET /api/v1/analytics/salespeople` — real salesperson data from DB
+- `GET /api/v1/analytics/cohorts` — real cohort analysis from contact creation dates
+- `GET /api/v1/analytics/optimization` — bottleneck detection from actual stage counts
+- `GET /api/v1/analytics/alerts` — alerts from `alert_instances` table
+- `POST /api/v1/analytics/alerts/rules` — create alert rules persisted to DB
+- `GET /api/v1/analytics/alerts/rules` — list all alert rules
+- `POST /api/v1/analytics/alerts/{id}/acknowledge` — acknowledge alerts
+
+### Segmentation Wired to Real Database (`src/modules/segmentation/api/routes.py`)
+- `POST /api/v1/segments/analyze` — RFM distribution from contacts table
+- `GET /api/v1/segments/distribution` — real segment counts per RFM segment
+- `GET /api/v1/segments/profiles` — paginated contact profiles with RFM scores
+- `GET /api/v1/segments/profiles/{id}` — individual contact RFM profile
+- `GET /api/v1/segments/products/{id}` — product recommendations based on real segment
+- `POST /api/v1/segments/campaign-contacts` — contacts by target segments from DB
+- `GET /api/v1/segments/high-priority` — at_risk + cant_lose contacts from DB
+
+### Analytics Infrastructure Repositories (`src/modules/analytics/infrastructure/repositories.py`)
+- `FunnelSnapshotRepository` — upsert snapshots, query by date range, get latest
+- `AlertRuleRepository` — CRUD for alert rules
+- `AlertInstanceRepository` — create, get active/all, acknowledge, resolve, count
+- `ImportLogRepository` — create, update status, get by task/type, stats summary
+
+### Contact Repository Analytics Methods (`src/modules/leads/infrastructure/repositories.py`)
+- `get_stage_counts()` — count contacts per funnel stage
+- `count_new_contacts()` — count contacts created in date range
+- `get_contacts_with_stages()` — contacts with stage info for funnel calculation
+- `get_contacts_grouped_by_source()` — group contacts by source_name
+- `get_contacts_grouped_by_category()` — group contacts by category_name
+- `get_stage_transitions()` — stage transition counts
+- `get_salespeople()` — distinct salespeople from assigned contacts
+- `get_rfm_distribution()` — count contacts per RFM segment
+
+### Call Log Repository Enhancement
+- `get_daily_stats()` — call stats for daily report (total, answered, successful, rates)
+
+### Celery Task Enhancements
+- Funnel snapshot task now persists to `funnel_snapshots` table via `FunnelSnapshotRepository`
+- RFM calculation task now persists segment assignments back to contact records
+- All import tasks use proper domain entities and tenant-scoped repositories
+
+### Import History
+- `GET /api/v1/import/history` — paginated import job history with type filtering
+- `GET /api/v1/import/stats` — import statistics summary
+
+### Route Prefix Fixes
+- Fixed double-prefix issue on analytics routes (`/api/v1/analytics/analytics/...` → `/api/v1/analytics/...`)
+- Fixed double-prefix issue on segmentation routes (`/api/v1/segments/segmentation/...` → `/api/v1/segments/...`)
+
+### Dependency Injection (`src/api/dependencies.py`)
+- Added `get_funnel_snapshot_repository`
+- Added `get_alert_rule_repository`
+- Added `get_alert_instance_repository`
+- Added `get_import_log_repository`
 
 ## Next Steps
 
-1. **Data Import** - Run actual batch import of leads-numbers and call logs
-2. **CRM/ERP Integration** - Connect to custom MongoDB-based CRM
-3. **Kavenegar API Integration** - Live SMS sending and delivery tracking
-4. **Dashboard Enhancements** - WebSocket-connected real-time updates in UI
-5. **Kubernetes Deployment** - Production manifests and CI/CD pipeline
-6. **Advanced Analytics** - Cohort analysis, A/B test tracking, ROI calculation
+1. **Import Call Logs & SMS Data** - Run actual import of call logs CSV and SMS delivery reports
+2. **Run RFM Calculation** - Execute RFM segmentation task to score all contacts
+3. **CRM/ERP Integration** - Connect to custom MongoDB-based CRM for invoice/payment sync
+4. **Kavenegar API Integration** - Live SMS sending and delivery tracking
+5. **Dashboard Enhancements** - WebSocket-connected real-time updates in UI
+6. **Kubernetes Deployment** - Production manifests and CI/CD pipeline
 
 ## Tech Stack
 

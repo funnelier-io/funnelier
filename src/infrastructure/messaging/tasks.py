@@ -43,7 +43,13 @@ def _normalize_phone(raw: str) -> str | None:
     """Normalize Iranian phone number to 10-digit format (9XXXXXXXXX)."""
     if not raw:
         return None
-    phone = "".join(c for c in str(raw) if c.isdigit())
+    # Handle float-formatted numbers like 9.126450549e+09
+    text = str(raw).split(".")[0] if "." not in str(raw) else str(raw)
+    try:
+        text = str(int(float(str(raw))))
+    except (ValueError, TypeError, OverflowError):
+        text = str(raw)
+    phone = "".join(c for c in text if c.isdigit())
     if phone.startswith("98") and len(phone) == 12:
         phone = phone[2:]
     elif phone.startswith("0") and len(phone) == 11:
@@ -51,6 +57,24 @@ def _normalize_phone(raw: str) -> str | None:
     if len(phone) == 10 and phone.startswith("9"):
         return phone
     return None
+
+
+def _parse_duration(raw) -> int:
+    """Parse duration from text like '366 sec' or '2 min 30 sec' to integer seconds."""
+    import re
+    if not raw or (hasattr(raw, '__class__') and raw.__class__.__name__ == 'float' and str(raw) == 'nan'):
+        return 0
+    text = str(raw).strip().lower()
+    match = re.match(r"(\d+)\s*sec", text)
+    if match:
+        return int(match.group(1))
+    match = re.match(r"(\d+)\s*min(?:\s+(\d+)\s*sec)?", text)
+    if match:
+        return int(match.group(1)) * 60 + int(match.group(2) or 0)
+    try:
+        return int(float(text.replace(",", "")))
+    except (ValueError, TypeError):
+        return 0
 
 
 def _notify_ws(event_type: str, payload: dict[str, Any]) -> None:
@@ -93,7 +117,9 @@ def import_leads_excel(self, file_content_b64: str, filename: str,
 
     async def _do_import():
         import pandas as pd
-        from src.infrastructure.database.repositories.leads import ContactRepository
+        from src.modules.leads.infrastructure.repositories import ContactRepository
+        from src.modules.leads.domain.entities import Contact
+        from src.core.domain.entities import PhoneNumber
 
         df = pd.read_excel(io.BytesIO(content))
 
@@ -115,7 +141,7 @@ def import_leads_excel(self, file_content_b64: str, filename: str,
         error_details = []
 
         async with session_factory() as session:
-            repo = ContactRepository(session)
+            repo = ContactRepository(session, tenant_uuid)
 
             for idx, row in df.iterrows():
                 try:
@@ -128,21 +154,21 @@ def import_leads_excel(self, file_content_b64: str, filename: str,
                             if name_col and pd.notna(row.get(name_col))
                             else "")
 
-                    existing = await repo.find_by_field(
-                        "phone_number", phone, tenant_uuid)
+                    existing = await repo.get_by_phone(phone)
                     if existing:
                         duplicates += 1
                         continue
 
-                    await repo.create({
-                        "id": uuid4(),
-                        "tenant_id": tenant_uuid,
-                        "phone_number": phone,
-                        "name": name,
-                        "source": f"excel:{filename}",
-                        "category": cat,
-                        "tags": [cat] if cat else [],
-                    })
+                    contact = Contact(
+                        id=uuid4(),
+                        tenant_id=tenant_uuid,
+                        phone_number=PhoneNumber.from_string(phone),
+                        name=name,
+                        source_name=f"excel:{filename}",
+                        category_name=cat,
+                        tags=[cat] if cat else [],
+                    )
+                    await repo.add(contact)
                     imported += 1
 
                     # Report progress every 100 rows
@@ -198,11 +224,13 @@ def import_call_logs_csv(self, file_content_b64: str, filename: str,
 
     async def _do_import():
         import pandas as pd
-        from src.infrastructure.database.repositories.communications import CallLogRepository
+        from src.modules.communications.infrastructure.repositories import CallLogRepository
+        from src.modules.communications.domain.entities import CallLog as CallLogEntity
+        from src.core.domain import CallType, CallSource
 
         # Try multiple encodings
         df = None
-        for enc in ["utf-8", "utf-8-sig", "cp1256", "latin1"]:
+        for enc in ["utf-8-sig", "utf-8", "cp1256", "latin1"]:
             try:
                 df = pd.read_csv(io.BytesIO(content), encoding=enc)
                 break
@@ -219,13 +247,15 @@ def import_call_logs_csv(self, file_content_b64: str, filename: str,
 
         duration_col = _find_column(df, [
             "duration", "مدت", "طول مکالمه", "Duration"])
+        type_col = _find_column(df, [
+            "type", "نوع", "Type", "Direction"])
 
         session_factory = _get_session_factory()
         imported = 0
         errors = 0
 
         async with session_factory() as session:
-            repo = CallLogRepository(session)
+            repo = CallLogRepository(session, tenant_uuid)
 
             for idx, row in df.iterrows():
                 try:
@@ -234,24 +264,35 @@ def import_call_logs_csv(self, file_content_b64: str, filename: str,
                         errors += 1
                         continue
 
-                    duration = 0
-                    if duration_col and pd.notna(row.get(duration_col)):
-                        try:
-                            duration = int(float(
-                                str(row[duration_col]).replace(",", "")))
-                        except ValueError:
-                            pass
+                    duration = _parse_duration(
+                        row.get(duration_col) if duration_col else None)
 
-                    await repo.create({
-                        "id": uuid4(),
-                        "tenant_id": tenant_uuid,
-                        "phone_number": phone,
-                        "salesperson_name": sp or "unknown",
-                        "duration_seconds": duration,
-                        "direction": "outbound",
-                        "answered": duration >= 90,
-                        "source": f"csv:{filename}",
-                    })
+                    # Determine direction from call type
+                    call_type = str(row.get(type_col, "")).strip().lower() if type_col else ""
+                    if call_type in ("outgoing",):
+                        ct = CallType.OUTGOING
+                    elif call_type in ("incomming", "incoming"):
+                        ct = CallType.INCOMING
+                    elif call_type in ("missed",):
+                        ct = CallType.MISSED
+                    else:
+                        ct = CallType.OUTGOING
+
+                    is_successful = call_type not in ("missed", "rejected") and duration >= 90
+
+                    call_log = CallLogEntity(
+                        id=uuid4(),
+                        tenant_id=tenant_uuid,
+                        phone_number=phone,
+                        call_type=ct,
+                        source=CallSource.MOBILE,
+                        duration_seconds=duration,
+                        call_time=datetime.utcnow(),
+                        salesperson_name=sp or "unknown",
+                        is_successful=is_successful,
+                        metadata={"source_file": filename},
+                    )
+                    await repo.add(call_log)
                     imported += 1
                 except Exception:
                     errors += 1
@@ -288,7 +329,9 @@ def import_sms_logs_csv(self, file_content_b64: str, filename: str,
 
     async def _do_import():
         import pandas as pd
-        from src.infrastructure.database.repositories.communications import SMSLogRepository
+        from src.modules.communications.infrastructure.repositories import SMSLogRepository
+        from src.modules.communications.domain.entities import SMSLog as SMSLogEntity
+        from src.core.domain import SMSDirection, SMSStatus
 
         df = pd.read_csv(io.BytesIO(content), encoding="utf-8-sig")
 
@@ -306,7 +349,7 @@ def import_sms_logs_csv(self, file_content_b64: str, filename: str,
         errors = 0
 
         async with session_factory() as session:
-            repo = SMSLogRepository(session)
+            repo = SMSLogRepository(session, tenant_uuid)
             for idx, row in df.iterrows():
                 try:
                     phone = _normalize_phone(str(row[phone_col]))
@@ -314,25 +357,27 @@ def import_sms_logs_csv(self, file_content_b64: str, filename: str,
                         errors += 1
                         continue
 
-                    status = "delivered"
+                    status = SMSStatus.DELIVERED
                     if status_col and pd.notna(row.get(status_col)):
                         raw_status = str(row[status_col]).lower()
                         if "deliver" in raw_status or "تحویل" in raw_status:
-                            status = "delivered"
+                            status = SMSStatus.DELIVERED
                         elif "fail" in raw_status or "خطا" in raw_status:
-                            status = "failed"
+                            status = SMSStatus.FAILED
                         else:
-                            status = "sent"
+                            status = SMSStatus.SENT
 
-                    await repo.create({
-                        "id": uuid4(),
-                        "tenant_id": tenant_uuid,
-                        "phone_number": phone,
-                        "content": str(row.get(content_col, ""))[:500] if content_col else "",
-                        "status": status,
-                        "provider": "kavenegar",
-                        "source": f"csv:{filename}",
-                    })
+                    sms_log = SMSLogEntity(
+                        id=uuid4(),
+                        tenant_id=tenant_uuid,
+                        phone_number=phone,
+                        direction=SMSDirection.OUTBOUND,
+                        content=str(row.get(content_col, ""))[:500] if content_col else "",
+                        status=status,
+                        provider_name="kavenegar",
+                        metadata={"source_file": filename},
+                    )
+                    await repo.add(sms_log)
                     imported += 1
                 except Exception:
                     errors += 1
@@ -367,7 +412,9 @@ def import_voip_json(self, file_content_b64: str, filename: str,
     content = base64.b64decode(file_content_b64)
 
     async def _do_import():
-        from src.infrastructure.database.repositories.communications import CallLogRepository
+        from src.modules.communications.infrastructure.repositories import CallLogRepository
+        from src.modules.communications.domain.entities import CallLog as CallLogEntity
+        from src.core.domain import CallType, CallSource
 
         records = json.loads(content)
         if isinstance(records, dict):
@@ -380,7 +427,7 @@ def import_voip_json(self, file_content_b64: str, filename: str,
         errors = 0
 
         async with session_factory() as session:
-            repo = CallLogRepository(session)
+            repo = CallLogRepository(session, tenant_uuid)
             for rec in records:
                 try:
                     phone = _normalize_phone(
@@ -392,17 +439,25 @@ def import_voip_json(self, file_content_b64: str, filename: str,
 
                     duration = int(rec.get("billsec",
                                            rec.get("duration", 0)))
-                    await repo.create({
-                        "id": uuid4(),
-                        "tenant_id": tenant_uuid,
-                        "phone_number": phone,
-                        "salesperson_name": str(rec.get("src",
+                    direction = rec.get("direction", "outbound")
+                    ct = CallType.INCOMING if direction == "inbound" else CallType.OUTGOING
+
+                    call_log = CallLogEntity(
+                        id=uuid4(),
+                        tenant_id=tenant_uuid,
+                        phone_number=phone,
+                        call_type=ct,
+                        source=CallSource.VOIP,
+                        duration_seconds=duration,
+                        call_time=datetime.utcnow(),
+                        salesperson_name=str(rec.get("src",
                             rec.get("caller", "voip"))),
-                        "duration_seconds": duration,
-                        "direction": rec.get("direction", "outbound"),
-                        "answered": duration >= 90,
-                        "source": f"voip:{filename}",
-                    })
+                        voip_call_id=rec.get("uniqueid", rec.get("call_id")),
+                        voip_extension=rec.get("channel", rec.get("extension")),
+                        is_successful=duration >= 90,
+                        metadata={"source_file": filename},
+                    )
+                    await repo.add(call_log)
                     imported += 1
                 except Exception:
                     errors += 1
@@ -523,6 +578,8 @@ def calculate_daily_funnel_snapshot(tenant_id: str | None = None):
         for tid in tenant_ids:
             try:
                 snapshot = await _compute_funnel_snapshot(tid)
+                # Persist snapshot to database
+                await _persist_funnel_snapshot(tid, snapshot)
                 snapshots.append(snapshot)
             except Exception as e:
                 logger.error(f"Funnel snapshot failed for tenant {tid}: {e}")
@@ -541,6 +598,38 @@ def calculate_daily_funnel_snapshot(tenant_id: str | None = None):
     })
 
     return result
+
+
+async def _persist_funnel_snapshot(tenant_id: UUID, snapshot: dict) -> None:
+    """Persist a computed funnel snapshot to the database."""
+    from src.modules.analytics.infrastructure.repositories import FunnelSnapshotRepository
+
+    session_factory = _get_session_factory()
+    async with session_factory() as session:
+        repo = FunnelSnapshotRepository(session, tenant_id)
+
+        class SnapshotData:
+            pass
+
+        data = SnapshotData()
+        data.snapshot_date = datetime.utcnow().date()
+        data.stage_counts = snapshot.get("stages", {})
+        data.new_leads = snapshot.get("stages", {}).get("lead_acquired", 0)
+        data.new_conversions = snapshot.get("stages", {}).get("payment_received", 0)
+        data.daily_revenue = 0
+        data.conversion_rates = snapshot.get("conversions", {})
+        data.conversion_rate = snapshot.get("conversions", {}).get("overall", 0.0) / 100
+        data.stage_transitions = []
+        data.new_sms_sent = snapshot.get("stages", {}).get("sms_sent", 0)
+        data.new_sms_delivered = snapshot.get("stages", {}).get("sms_delivered", 0)
+        data.new_calls = snapshot.get("stages", {}).get("call_attempted", 0)
+        data.new_answered_calls = snapshot.get("stages", {}).get("call_answered", 0)
+        data.new_successful_calls = snapshot.get("stages", {}).get("call_answered", 0)
+        data.new_invoices = snapshot.get("stages", {}).get("invoice_issued", 0)
+        data.new_payments = snapshot.get("stages", {}).get("payment_received", 0)
+
+        await repo.save(data)
+        await session.commit()
 
 
 async def _compute_funnel_snapshot(tenant_id: UUID) -> dict[str, Any]:
@@ -588,7 +677,7 @@ async def _compute_funnel_snapshot(tenant_id: UUID) -> dict[str, Any]:
         calls_answered = (await session.execute(
             select(func.count(CallLogModel.id)).where(
                 CallLogModel.tenant_id == tenant_id,
-                CallLogModel.answered == True,
+                CallLogModel.is_successful == True,
             )
         )).scalar() or 0
 
@@ -694,26 +783,47 @@ def calculate_rfm_segments(tenant_id: str | None = None):
                 rfm_service = RFMSegmentationService()
                 segment_counts = {}
 
-                for contact in contacts:
-                    pdata = payment_data.get(contact.phone_number, {})
-                    frequency = pdata.get("frequency", 0)
-                    monetary = pdata.get("monetary", 0)
-                    last_payment = pdata.get("last_payment")
+                # Update contacts with RFM scores
+                async with session_factory() as session:
+                    from sqlalchemy import update as sa_update
 
-                    recency_days = (
-                        (now - last_payment).days
-                        if last_payment else 999
-                    )
+                    for contact in contacts:
+                        pdata = payment_data.get(contact.phone_number, {})
+                        frequency = pdata.get("frequency", 0)
+                        monetary = pdata.get("monetary", 0)
+                        last_payment = pdata.get("last_payment")
 
-                    profile = rfm_service.calculate_rfm(
-                        recency_days=recency_days,
-                        frequency=frequency,
-                        monetary=monetary,
-                    )
+                        recency_days = (
+                            (now - last_payment).days
+                            if last_payment else 999
+                        )
 
-                    segment_name = profile.segment.value
-                    segment_counts[segment_name] = segment_counts.get(
-                        segment_name, 0) + 1
+                        profile = rfm_service.calculate_rfm(
+                            recency_days=recency_days,
+                            frequency=frequency,
+                            monetary=monetary,
+                        )
+
+                        segment_name = profile.segment.value
+                        segment_counts[segment_name] = segment_counts.get(
+                            segment_name, 0) + 1
+
+                        # Persist RFM scores back to contact
+                        stmt = (
+                            sa_update(ContactModel)
+                            .where(ContactModel.id == contact.id)
+                            .values(
+                                rfm_segment=segment_name,
+                                rfm_score=f"{profile.recency_score}{profile.frequency_score}{profile.monetary_score}",
+                                recency_score=profile.recency_score,
+                                frequency_score=profile.frequency_score,
+                                monetary_score=profile.monetary_score,
+                                last_rfm_update=now,
+                            )
+                        )
+                        await session.execute(stmt)
+
+                    await session.commit()
 
                 results.append({
                     "tenant_id": str(tid),
@@ -901,7 +1011,7 @@ def sync_mongodb_invoices(self, tenant_id: str, connection_string: str,
 
     async def _sync():
         from motor.motor_asyncio import AsyncIOMotorClient
-        from src.infrastructure.database.repositories.sales import InvoiceRepository
+        from src.modules.sales.infrastructure.repositories import InvoiceRepository
 
         client = AsyncIOMotorClient(connection_string)
         db = client[database_name]
@@ -913,7 +1023,7 @@ def sync_mongodb_invoices(self, tenant_id: str, connection_string: str,
         errors = 0
 
         async with session_factory() as session:
-            repo = InvoiceRepository(session)
+            repo = InvoiceRepository(session, tenant_uuid)
 
             async for doc in cursor:
                 try:
@@ -923,17 +1033,24 @@ def sync_mongodb_invoices(self, tenant_id: str, connection_string: str,
                         errors += 1
                         continue
 
-                    await repo.create({
-                        "id": uuid4(),
-                        "tenant_id": tenant_uuid,
-                        "phone_number": phone,
-                        "invoice_number": str(doc.get("invoice_number",
+                    from src.modules.sales.domain.entities import Invoice, InvoiceLineItem
+                    from src.core.domain import InvoiceStatus
+
+                    invoice = Invoice(
+                        id=uuid4(),
+                        tenant_id=tenant_uuid,
+                        invoice_number=str(doc.get("invoice_number",
                             doc.get("_id", ""))),
-                        "amount": float(doc.get("total",
-                            doc.get("amount", 0))),
-                        "status": doc.get("status", "issued"),
-                        "source": f"mongodb:{database_name}.{collection_name}",
-                    })
+                        phone_number=phone,
+                        total_amount=int(float(doc.get("total",
+                            doc.get("amount", 0)))),
+                        subtotal=int(float(doc.get("subtotal",
+                            doc.get("total", 0)))),
+                        status=InvoiceStatus.ISSUED,
+                        external_id=str(doc.get("_id", "")),
+                        metadata={"source": f"mongodb:{database_name}.{collection_name}"},
+                    )
+                    await repo.add(invoice)
                     imported += 1
                 except Exception:
                     errors += 1
