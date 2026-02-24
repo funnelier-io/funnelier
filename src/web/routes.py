@@ -198,32 +198,31 @@ async def dashboard_home():
         api('GET', '/communications/sms/stats'),
         api('GET', '/communications/calls/stats'),
         api('GET', '/sales/products'),
-        api('GET', '/analytics/analytics/funnel'),
-        api('GET', '/segments/segmentation/distribution'),
+        api('GET', '/analytics/funnel'),
+        api('GET', '/segments/distribution'),
         api('GET', '/team/salespeople'),
     ]);
 
-    document.getElementById('kpi-leads').textContent = fmtNum(leads.data.total_contacts);
+    document.getElementById('kpi-leads').textContent = fmtNum(funnel.data.total_leads || leads.data.total_contacts);
     document.getElementById('kpi-sms').textContent = fmtNum(sms.data.total_sent || sms.data.total_queued || 0);
-    document.getElementById('kpi-calls').textContent = fmtNum(calls.data.total_calls);
+    document.getElementById('kpi-calls').textContent = fmtNum(calls.data.total_calls || calls.data.total);
     document.getElementById('kpi-products').textContent = fmtNum(products.data.total_count);
 
     // Funnel chart
     if (funnel.data.stage_counts) {
-        const labels = Object.keys(funnel.data.stage_counts);
-        const values = Object.values(funnel.data.stage_counts);
+        const stages = funnel.data.stage_counts;
         const fLabels = {
-            lead_acquired:'سرنخ', sms_sent:'پیامک', call_attempted:'تماس',
-            call_answered:'پاسخ', invoice_sent:'پیش‌فاکتور',
-            invoice_accepted:'تأیید', payment_received:'پرداخت'
+            lead_acquired:'سرنخ', sms_sent:'پیامک', sms_delivered:'تحویل پیامک',
+            call_attempted:'تماس', call_answered:'پاسخ',
+            invoice_issued:'پیش‌فاکتور', payment_received:'پرداخت'
         };
         new Chart(document.getElementById('funnelChart'), {
             type: 'bar',
             data: {
-                labels: labels.map(l => fLabels[l]||l),
+                labels: stages.map(s => fLabels[s.stage]||s.stage),
                 datasets: [{
-                    data: values,
-                    backgroundColor: ['#3b82f6','#8b5cf6','#f59e0b','#22c55e','#06b6d4','#10b981','#059669'],
+                    data: stages.map(s => s.count),
+                    backgroundColor: ['#3b82f6','#8b5cf6','#a78bfa','#f59e0b','#22c55e','#06b6d4','#059669'],
                     borderRadius: 6,
                 }]
             },
@@ -406,19 +405,21 @@ async def funnel_page():
 <script>
 (async function() {
     checkAuth();
-    const { data: funnel } = await api('GET', '/analytics/analytics/funnel');
-    const { data: trend } = await api('GET', '/analytics/analytics/funnel/trend');
+    const { data: funnel } = await api('GET', '/analytics/funnel');
+    const { data: trend } = await api('GET', '/analytics/funnel/trend');
 
     if (funnel.stage_counts) {
-        const labels = Object.keys(funnel.stage_counts);
-        const values = Object.values(funnel.stage_counts);
-        const fa = {lead_acquired:'سرنخ جدید',sms_sent:'پیامک ارسالی',call_attempted:'تماس',
-            call_answered:'پاسخ داده',invoice_sent:'پیش‌فاکتور',invoice_accepted:'تأیید فاکتور',payment_received:'پرداخت'};
+        const stages = funnel.stage_counts;
+        const fa = {lead_acquired:'سرنخ جدید',sms_sent:'پیامک ارسالی',sms_delivered:'تحویل پیامک',
+            call_attempted:'تماس',call_answered:'پاسخ داده',
+            invoice_issued:'پیش‌فاکتور',payment_received:'پرداخت'};
+        const labels = stages.map(s => s.stage);
+        const values = stages.map(s => s.count);
         new Chart(document.getElementById('funnelChart'), {
             type: 'bar',
             data: { labels: labels.map(l=>fa[l]||l), datasets: [{
                 data: values,
-                backgroundColor: ['#3b82f6','#8b5cf6','#f59e0b','#22c55e','#06b6d4','#10b981','#059669'],
+                backgroundColor: ['#3b82f6','#8b5cf6','#a78bfa','#f59e0b','#22c55e','#06b6d4','#059669'],
                 borderRadius: 8 }] },
             options: { indexAxis:'y', plugins:{legend:{display:false}}, scales:{x:{beginAtZero:true}} }
         });
@@ -442,12 +443,15 @@ async def funnel_page():
             data: {
                 labels: trend.snapshots.map(s=>new Date(s.date).toLocaleDateString('fa-IR')),
                 datasets: [
-                    {label:'سرنخ',data:trend.snapshots.map(s=>s.lead_acquired||0),borderColor:'#3b82f6',tension:0.3},
-                    {label:'پیامک',data:trend.snapshots.map(s=>s.sms_sent||0),borderColor:'#8b5cf6',tension:0.3},
-                    {label:'پرداخت',data:trend.snapshots.map(s=>s.payment_received||0),borderColor:'#059669',tension:0.3},
+                    {label:'سرنخ',data:trend.snapshots.map(s=>s.new_leads||0),borderColor:'#3b82f6',tension:0.3},
+                    {label:'تبدیل',data:trend.snapshots.map(s=>s.new_conversions||0),borderColor:'#059669',tension:0.3},
+                    {label:'نرخ تبدیل',data:trend.snapshots.map(s=>(s.conversion_rate*100).toFixed(1)),borderColor:'#f59e0b',tension:0.3,yAxisID:'y1'},
                 ]
             },
-            options: { plugins:{legend:{rtl:true,labels:{font:{family:'Shabnam'}}}}, scales:{y:{beginAtZero:true}} }
+            options: {
+                plugins:{legend:{rtl:true,labels:{font:{family:'Shabnam'}}}},
+                scales:{y:{beginAtZero:true},y1:{type:'linear',position:'left',beginAtZero:true,max:100,title:{display:true,text:'نرخ تبدیل %'}}}
+            }
         });
     }
 })();
@@ -477,7 +481,7 @@ async def segments_page():
 <script>
 (async function() {
     checkAuth();
-    const { data } = await api('GET', '/segments/segmentation/distribution');
+    const { data } = await api('GET', '/segments/distribution');
     const fa = {champions:'قهرمانان',loyal:'وفادار',potential_loyalist:'بالقوه',
         new_customers:'جدید',promising:'امیدوار',need_attention:'نیاز توجه',
         about_to_sleep:'رو به خواب',at_risk:'در خطر',cant_lose:'از دست ندهید',
@@ -496,7 +500,7 @@ async def segments_page():
 
         const recs = document.getElementById('recs');
         for (const seg of data.segments) {
-            const { data: rec } = await api('GET', '/segments/segmentation/recommendations/' + seg.segment);
+            const { data: rec } = await api('GET', '/segments/recommendations/' + seg.segment);
             if (rec.recommended_message_types) {
                 recs.innerHTML += '<div class="p-3 border rounded-lg"><span class="font-bold">'+(fa[seg.segment]||seg.segment)+
                     '</span> <span class="text-gray-400">('+seg.count+')</span><br>'+
