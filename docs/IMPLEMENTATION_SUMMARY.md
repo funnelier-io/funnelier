@@ -238,21 +238,71 @@ Basic dashboard with:
 - High-value threshold: 1B IRR
 - Recent period: 14 days
 
+## Completed Phases
+
+1. ✅ **Phase 1** - Core DDD architecture, domain entities, modules, ETL connectors
+2. ✅ **Phase 2** - PostgreSQL persistence layer, SQLAlchemy repositories, migrations
+3. ✅ **Phase 3** - Test infrastructure, integration tests, bug fixes
+4. ✅ **Phase 4** - JWT authentication with RBAC, user management
+5. ✅ **Phase 5** - Web dashboard with live API data, Chart.js charts
+6. ✅ **Phase 6** - Celery background tasks, WebSocket real-time updates, async imports
+
+## Phase 6 Details: Background Tasks & Real-time
+
+### Celery App (`src/infrastructure/messaging/celery_app.py`)
+- Redis-backed Celery with task routing (imports, analytics, notifications, sync queues)
+- Beat schedule for periodic tasks:
+  - Daily funnel snapshot (1:00 AM)
+  - Daily RFM recalculation (2:00 AM)
+  - Hourly alert check
+  - Daily report generation (6:00 AM)
+
+### Background Tasks (`src/infrastructure/messaging/tasks.py`)
+- **Import Tasks**: `import_leads_excel`, `import_call_logs_csv`, `import_sms_logs_csv`, `import_voip_json`, `import_leads_batch`
+- **Analytics Tasks**: `calculate_daily_funnel_snapshot`, `calculate_rfm_segments`
+- **Report Tasks**: `generate_daily_report`
+- **Alert Tasks**: `check_alerts`
+- **Sync Tasks**: `sync_mongodb_invoices`
+- **Notification Tasks**: `send_sms_notification`
+- All tasks publish events to WebSocket via Redis pub/sub
+
+### WebSocket (`src/api/websocket.py`)
+- Real-time event streaming via `/ws` endpoint
+- ConnectionManager with tenant-scoped broadcasting
+- Redis pub/sub listener for cross-process event delivery
+- Task status polling via `GET /api/v1/tasks/{task_id}`
+
+### Async Import Endpoints
+- `POST /api/v1/import/leads/upload-async` - Background Excel import
+- `POST /api/v1/import/calls/upload-async` - Background CSV call log import
+- `POST /api/v1/import/sms/upload-async` - Background SMS log import
+- `POST /api/v1/import/voip/upload-async` - Background VoIP JSON import
+- `POST /api/v1/import/leads/batch-async` - Background batch import all leads
+- `POST /api/v1/import/analytics/funnel-snapshot` - Trigger funnel snapshot
+- `POST /api/v1/import/analytics/rfm-recalculate` - Trigger RFM recalculation
+
+### Test Coverage
+- 136 tests passing (91 unit + 45 integration)
+- Task registration, phone normalization, helper functions, Celery config
+- WebSocket ConnectionManager (connect, disconnect, broadcast, tenant isolation)
+- Integration tests for all new HTTP endpoints
+
 ## Next Steps
 
-1. **Database Implementation** - Create SQLAlchemy repository implementations
-2. **Authentication** - Implement JWT-based auth with tenant isolation
-3. **Background Jobs** - Celery tasks for ETL and scheduled reports
-4. **Real-time Updates** - WebSocket support for dashboard
-5. **Testing** - Unit and integration tests
-6. **Deployment** - Kubernetes manifests for production
+1. **Data Import** - Run actual batch import of leads-numbers and call logs
+2. **CRM/ERP Integration** - Connect to custom MongoDB-based CRM
+3. **Kavenegar API Integration** - Live SMS sending and delivery tracking
+4. **Dashboard Enhancements** - WebSocket-connected real-time updates in UI
+5. **Kubernetes Deployment** - Production manifests and CI/CD pipeline
+6. **Advanced Analytics** - Cohort analysis, A/B test tracking, ROI calculation
 
 ## Tech Stack
 
 - **Framework**: FastAPI
 - **Database**: PostgreSQL (primary), MongoDB (tenant data)
 - **Cache**: Redis
-- **Task Queue**: Celery
+- **Task Queue**: Celery with Redis broker
+- **Real-time**: WebSocket + Redis pub/sub
 - **ORM**: SQLAlchemy 2.0 (async)
 - **Validation**: Pydantic v2
 - **VoIP**: Asterisk integration

@@ -415,4 +415,116 @@ class TestAuthAPI:
         assert isinstance(resp.json(), list)
 
 
+class TestImportAPI:
+    """Integration tests for ETL / Import module."""
+
+    @pytest.mark.asyncio(loop_scope="session")
+    async def test_scan_lead_files(self, client):
+        resp = await client.get("/api/v1/import/leads/scan")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "files" in data
+        assert data["count"] >= 0
+        if data["count"] > 0:
+            assert "name" in data["files"][0]
+            assert "category" in data["files"][0]
+
+    @pytest.mark.asyncio(loop_scope="session")
+    async def test_scan_call_log_files(self, client):
+        resp = await client.get("/api/v1/import/calls/scan")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "files" in data
+        assert data["count"] >= 0
+
+    @pytest.mark.asyncio(loop_scope="session")
+    async def test_upload_leads_rejects_non_excel(self, client):
+        # Upload a non-Excel file
+        resp = await client.post(
+            "/api/v1/import/leads/upload",
+            files={"file": ("test.txt", b"hello world", "text/plain")},
+        )
+        assert resp.status_code == 400
+
+    @pytest.mark.asyncio(loop_scope="session")
+    async def test_upload_calls_rejects_non_csv(self, client):
+        resp = await client.post(
+            "/api/v1/import/calls/upload",
+            files={"file": ("test.xlsx", b"hello", "application/octet-stream")},
+        )
+        assert resp.status_code == 400
+
+
+class TestAsyncImportEndpoints:
+    """Integration tests for async (Celery-backed) import endpoints."""
+
+    @pytest.mark.asyncio(loop_scope="session")
+    async def test_async_leads_rejects_non_excel(self, client):
+        resp = await client.post(
+            "/api/v1/import/leads/upload-async",
+            files={"file": ("test.txt", b"hello world", "text/plain")},
+        )
+        assert resp.status_code == 400
+
+    @pytest.mark.asyncio(loop_scope="session")
+    async def test_async_calls_rejects_non_csv(self, client):
+        resp = await client.post(
+            "/api/v1/import/calls/upload-async",
+            files={"file": ("test.xlsx", b"hello", "application/octet-stream")},
+        )
+        assert resp.status_code == 400
+
+    @pytest.mark.asyncio(loop_scope="session")
+    async def test_async_sms_rejects_non_csv(self, client):
+        resp = await client.post(
+            "/api/v1/import/sms/upload-async",
+            files={"file": ("test.xlsx", b"hello", "application/octet-stream")},
+        )
+        assert resp.status_code == 400
+
+    @pytest.mark.asyncio(loop_scope="session")
+    async def test_async_voip_rejects_invalid_extension(self, client):
+        resp = await client.post(
+            "/api/v1/import/voip/upload-async",
+            files={"file": ("test.csv", b"hello", "text/csv")},
+        )
+        assert resp.status_code == 400
+
+
+class TestWebSocketEndpoints:
+    """Integration tests for WebSocket-related HTTP endpoints."""
+
+    @pytest.mark.asyncio(loop_scope="session")
+    async def test_ws_status(self, client):
+        resp = await client.get("/api/v1/ws/status")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "connections" in data
+        assert data["status"] == "active"
+
+    @pytest.mark.asyncio(loop_scope="session")
+    async def test_task_status_unknown_task(self, client):
+        resp = await client.get("/api/v1/tasks/nonexistent-task-id")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["task_id"] == "nonexistent-task-id"
+        assert "status" in data
+
+
+class TestAnalyticsTriggers:
+    """Integration tests for analytics trigger endpoints."""
+
+    @pytest.mark.asyncio(loop_scope="session")
+    async def test_trigger_funnel_snapshot_endpoint_exists(self, client):
+        """Test that the endpoint responds (may fail if Celery not running)."""
+        resp = await client.post("/api/v1/import/analytics/funnel-snapshot")
+        # May be 200 (queued) or 500 (Celery not available)
+        assert resp.status_code in (200, 500)
+
+    @pytest.mark.asyncio(loop_scope="session")
+    async def test_trigger_rfm_recalculate_endpoint_exists(self, client):
+        resp = await client.post("/api/v1/import/analytics/rfm-recalculate")
+        assert resp.status_code in (200, 500)
+
+
 

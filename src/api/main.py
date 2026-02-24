@@ -3,6 +3,8 @@ Funnelier API - Main Application
 FastAPI application entry point
 """
 
+import asyncio
+import logging
 from contextlib import asynccontextmanager
 from typing import Any
 from uuid import UUID
@@ -13,6 +15,8 @@ from fastapi.responses import JSONResponse
 
 from src.core.config import settings
 from src.infrastructure.database import close_database, init_database
+
+logger = logging.getLogger(__name__)
 
 
 async def _seed_default_tenant():
@@ -42,14 +46,35 @@ async def _seed_default_tenant():
             await session.commit()
 
 
+_redis_listener_task: asyncio.Task | None = None
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan events."""
+    global _redis_listener_task
+
     # Startup
     await init_database()
     await _seed_default_tenant()
+
+    # Start WebSocket Redis pub/sub listener (non-blocking)
+    try:
+        from src.api.websocket import start_redis_listener
+        _redis_listener_task = asyncio.create_task(start_redis_listener())
+        logger.info("WebSocket Redis listener task started")
+    except Exception as e:
+        logger.warning(f"Could not start WebSocket Redis listener: {e}")
+
     yield
+
     # Shutdown
+    if _redis_listener_task and not _redis_listener_task.done():
+        _redis_listener_task.cancel()
+        try:
+            await _redis_listener_task
+        except asyncio.CancelledError:
+            pass
     await close_database()
 
 
@@ -116,12 +141,16 @@ def create_app() -> FastAPI:
                 "team": "/api/v1/team",
                 "tenants": "/api/v1/tenants",
                 "auth": "/api/v1/auth",
+                "import": "/api/v1/import",
+                "tasks": "/api/v1/tasks/{task_id}",
+                "websocket": "/ws",
             },
         }
 
     # Register routers
     from src.api.routes import (
         auth_router,
+        import_router,
         leads_router,
         communications_router,
         sales_router,
@@ -132,12 +161,17 @@ def create_app() -> FastAPI:
         tenants_router,
     )
     from src.web.routes import dashboard_router
+    from src.api.websocket import ws_router
 
     # Web Dashboard
     app.include_router(dashboard_router, tags=["Dashboard"])
 
+    # WebSocket & Task Status
+    app.include_router(ws_router, tags=["WebSocket"])
+
     # API Routes
     app.include_router(auth_router, prefix="/api/v1", tags=["Auth"])
+    app.include_router(import_router, prefix="/api/v1", tags=["Import"])
     app.include_router(leads_router, prefix="/api/v1/leads", tags=["Leads"])
     app.include_router(communications_router, prefix="/api/v1/communications", tags=["Communications"])
     app.include_router(sales_router, prefix="/api/v1/sales", tags=["Sales"])
