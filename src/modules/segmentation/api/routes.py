@@ -54,7 +54,7 @@ SEGMENT_NAMES_FA = {
     "potential_loyalist": "وفادار بالقوه",
     "new_customers": "مشتریان جدید",
     "promising": "امیدوارکننده",
-    "needs_attention": "نیاز به توجه",
+    "need_attention": "نیاز به توجه",
     "about_to_sleep": "در آستانه خواب",
     "at_risk": "در خطر",
     "cant_lose": "نباید از دست داد",

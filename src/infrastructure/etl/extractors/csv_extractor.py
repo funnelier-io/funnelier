@@ -13,6 +13,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, AsyncIterator
 
+from src.core.utils import normalize_phone_strict
+
 import aiofiles
 
 from src.core.interfaces import DataRecord, FileSourceConfig
@@ -213,14 +215,7 @@ class CallLogCSVExtractor(CSVExtractor):
         """Normalize phone number to standard format."""
         if not phone:
             return None
-        # Remove non-digit characters
-        digits = "".join(c for c in phone if c.isdigit())
-        # Add country code if missing
-        if digits.startswith("0"):
-            digits = "98" + digits[1:]
-        elif not digits.startswith("98"):
-            digits = "98" + digits
-        return digits
+        return normalize_phone_strict(str(phone))
 
     def _parse_duration(self, duration: str | None) -> int:
         """Parse duration string to seconds."""

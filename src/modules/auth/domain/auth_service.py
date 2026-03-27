@@ -12,11 +12,13 @@ from jose import JWTError, jwt
 from passlib.context import CryptContext
 from pydantic import BaseModel
 
-# Configuration
-SECRET_KEY = "funnelier-secret-key-change-in-production"  # TODO: from env
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 hours
-REFRESH_TOKEN_EXPIRE_DAYS = 30
+from src.core.config import settings
+
+# Configuration — read from settings
+SECRET_KEY = settings.jwt.secret_key
+ALGORITHM = settings.jwt.algorithm
+ACCESS_TOKEN_EXPIRE_MINUTES = settings.jwt.access_token_expire_minutes
+REFRESH_TOKEN_EXPIRE_DAYS = settings.jwt.refresh_token_expire_days
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 

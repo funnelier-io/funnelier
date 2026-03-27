@@ -5,7 +5,7 @@ FastAPI dependency providers for database sessions, repositories, and services.
 Centralizes tenant resolution and provides graceful fallback when DB is unavailable.
 """
 
-from typing import AsyncGenerator
+from typing import Annotated, AsyncGenerator
 from uuid import UUID
 
 from fastapi import Depends, Header, Request
@@ -46,14 +46,34 @@ async def get_current_tenant_id(
     return DEFAULT_TENANT_ID
 
 
-async def get_current_user_id() -> UUID:
-    """Get current user from auth context. Stub for development."""
-    return UUID("00000000-0000-0000-0000-000000000002")
+# ──────────────────────── Auth Dependencies ─────────────────────────
+# Re-export auth dependencies from the auth module for use across all routes.
+
+def get_current_user():
+    """
+    Get current authenticated user from JWT token.
+    Import lazily to avoid circular imports.
+    """
+    from src.modules.auth.api.routes import get_current_user as _get_current_user
+    return _get_current_user
 
 
-async def get_super_admin() -> bool:
-    """Check if current user is super admin. Stub for development."""
-    return True
+def require_auth():
+    """
+    Require authenticated user.
+    Import lazily to avoid circular imports.
+    """
+    from src.modules.auth.api.routes import require_auth as _require_auth
+    return _require_auth
+
+
+def require_admin():
+    """
+    Require admin role.
+    Import lazily to avoid circular imports.
+    """
+    from src.modules.auth.api.routes import require_admin as _require_admin
+    return _require_admin
 
 
 # ──────────────────────── Leads Repositories ────────────────────────

@@ -40,23 +40,9 @@ def _get_session_factory():
 
 
 def _normalize_phone(raw: str) -> str | None:
-    """Normalize Iranian phone number to 10-digit format (9XXXXXXXXX)."""
-    if not raw:
-        return None
-    # Handle float-formatted numbers like 9.126450549e+09
-    text = str(raw).split(".")[0] if "." not in str(raw) else str(raw)
-    try:
-        text = str(int(float(str(raw))))
-    except (ValueError, TypeError, OverflowError):
-        text = str(raw)
-    phone = "".join(c for c in text if c.isdigit())
-    if phone.startswith("98") and len(phone) == 12:
-        phone = phone[2:]
-    elif phone.startswith("0") and len(phone) == 11:
-        phone = phone[1:]
-    if len(phone) == 10 and phone.startswith("9"):
-        return phone
-    return None
+    """Normalize Iranian phone number. Delegates to core utility."""
+    from src.core.utils import normalize_phone_strict
+    return normalize_phone_strict(raw)
 
 
 def _parse_duration(raw) -> int:

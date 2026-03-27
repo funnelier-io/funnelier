@@ -18,9 +18,21 @@ def normalize_phone_number(phone: str) -> str:
         +989123456789 -> 9123456789
         09123456789 -> 9123456789
         9123456789 -> 9123456789
+        9.126450549e+09 -> 9126450549
     """
+    if not phone:
+        return ""
+
+    raw = str(phone)
+
+    # Handle float-formatted numbers (e.g. from Excel: 9.126450549e+09)
+    try:
+        raw = str(int(float(raw)))
+    except (ValueError, TypeError, OverflowError):
+        pass
+
     # Remove all non-digit characters
-    digits = re.sub(r'\D', '', str(phone))
+    digits = re.sub(r'\D', '', raw)
 
     # Handle different formats
     if digits.startswith("98") and len(digits) == 12:
@@ -29,10 +41,23 @@ def normalize_phone_number(phone: str) -> str:
         return digits[1:]
     elif len(digits) == 10 and digits.startswith("9"):
         return digits
-    elif len(digits) == 9:
+    elif len(digits) == 9 and not digits.startswith("0"):
         return "9" + digits
 
     return digits
+
+
+def normalize_phone_strict(phone: str) -> str | None:
+    """
+    Normalize Iranian phone number to 10-digit format.
+    Returns None if the result is not a valid 10-digit Iranian mobile number.
+
+    Use this for data import/ETL where invalid phones should be skipped.
+    """
+    result = normalize_phone_number(phone)
+    if len(result) == 10 and result.startswith("9"):
+        return result
+    return None
 
 
 def is_valid_iranian_phone(phone: str) -> bool:

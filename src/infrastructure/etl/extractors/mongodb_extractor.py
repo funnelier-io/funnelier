@@ -13,6 +13,8 @@ from typing import Any, AsyncIterator
 
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorCollection
 
+from src.core.utils import normalize_phone_strict
+
 from src.core.interfaces import DataRecord, DatabaseSourceConfig
 
 from .base import BaseExtractor, ExtractorRegistry
@@ -293,12 +295,7 @@ class InvoiceExtractor(MongoDBExtractor):
         """Normalize phone number."""
         if not phone:
             return None
-        digits = "".join(c for c in str(phone) if c.isdigit())
-        if digits.startswith("0"):
-            digits = "98" + digits[1:]
-        elif not digits.startswith("98"):
-            digits = "98" + digits
-        return digits if len(digits) >= 10 else None
+        return normalize_phone_strict(str(phone))
 
     def _parse_amount(self, amount: Any) -> float:
         """Parse amount to float."""
@@ -355,12 +352,7 @@ class PaymentExtractor(MongoDBExtractor):
         """Normalize phone number."""
         if not phone:
             return None
-        digits = "".join(c for c in str(phone) if c.isdigit())
-        if digits.startswith("0"):
-            digits = "98" + digits[1:]
-        elif not digits.startswith("98"):
-            digits = "98" + digits
-        return digits if len(digits) >= 10 else None
+        return normalize_phone_strict(str(phone))
 
     def _parse_amount(self, amount: Any) -> float:
         """Parse amount to float."""

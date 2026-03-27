@@ -96,10 +96,6 @@ def create_test_app() -> FastAPI:
         team_router,
         tenants_router,
     )
-    from src.web.routes import dashboard_router
-
-    # Web Dashboard (frontend)
-    app.include_router(dashboard_router, tags=["Dashboard"])
 
     # API Routes
     app.include_router(leads_router, prefix="/api/v1/leads", tags=["Leads"])

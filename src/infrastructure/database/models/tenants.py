@@ -68,14 +68,16 @@ class TenantUserModel(Base, UUIDMixin, TimestampMixin):
     )
 
     email: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    username: Mapped[str] = mapped_column(String(100), nullable=True, unique=True, index=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
 
     # Role
-    role: Mapped[str] = mapped_column(String(50), default="member")
+    role: Mapped[str] = mapped_column(String(50), default="viewer")
 
     # Status
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    is_approved: Mapped[bool] = mapped_column(Boolean, default=False)
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     # Permissions

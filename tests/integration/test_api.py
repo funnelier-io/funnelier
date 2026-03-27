@@ -31,10 +31,10 @@ class TestLeadsAPI:
     """Integration tests for Leads module."""
 
     @pytest.mark.asyncio(loop_scope="session")
-    async def test_create_and_get_contact(self, client):
+    async def test_create_and_get_contact(self, authed_client):
         # Create
         phone = f"0935{uuid4().hex[:7]}"
-        resp = await client.post("/api/v1/leads/contacts", json={
+        resp = await authed_client.post("/api/v1/leads/contacts", json={
             "phone_number": phone,
             "name": "تست یکپارچه",
             "tags": ["integration-test"],
@@ -45,60 +45,60 @@ class TestLeadsAPI:
         contact_id = data["id"]
 
         # Get by ID
-        resp = await client.get(f"/api/v1/leads/contacts/{contact_id}")
+        resp = await authed_client.get(f"/api/v1/leads/contacts/{contact_id}")
         assert resp.status_code == 200
         assert resp.json()["id"] == contact_id
 
     @pytest.mark.asyncio(loop_scope="session")
-    async def test_duplicate_phone_rejected(self, client):
+    async def test_duplicate_phone_rejected(self, authed_client):
         phone = f"0935{uuid4().hex[:7]}"
-        await client.post("/api/v1/leads/contacts", json={
+        await authed_client.post("/api/v1/leads/contacts", json={
             "phone_number": phone, "name": "اولی"
         })
-        resp = await client.post("/api/v1/leads/contacts", json={
+        resp = await authed_client.post("/api/v1/leads/contacts", json={
             "phone_number": phone, "name": "دومی"
         })
         assert resp.status_code == 409
 
     @pytest.mark.asyncio(loop_scope="session")
-    async def test_update_contact_stage(self, client):
+    async def test_update_contact_stage(self, authed_client):
         phone = f"0935{uuid4().hex[:7]}"
-        resp = await client.post("/api/v1/leads/contacts", json={
+        resp = await authed_client.post("/api/v1/leads/contacts", json={
             "phone_number": phone, "name": "Stage Test"
         })
         cid = resp.json()["id"]
 
-        resp = await client.patch(f"/api/v1/leads/contacts/{cid}/stage", json={
+        resp = await authed_client.patch(f"/api/v1/leads/contacts/{cid}/stage", json={
             "stage": "sms_sent"
         })
         assert resp.status_code == 200
         assert resp.json()["current_stage"] == "sms_sent"
 
     @pytest.mark.asyncio(loop_scope="session")
-    async def test_block_unblock_contact(self, client):
+    async def test_block_unblock_contact(self, authed_client):
         phone = f"0935{uuid4().hex[:7]}"
-        resp = await client.post("/api/v1/leads/contacts", json={
+        resp = await authed_client.post("/api/v1/leads/contacts", json={
             "phone_number": phone, "name": "Block Test"
         })
         cid = resp.json()["id"]
 
         # Block
-        resp = await client.post(f"/api/v1/leads/contacts/{cid}/block?reason=spam")
+        resp = await authed_client.post(f"/api/v1/leads/contacts/{cid}/block?reason=spam")
         assert resp.status_code == 200
         assert resp.json()["is_blocked"] is True
 
         # Unblock
-        resp = await client.post(f"/api/v1/leads/contacts/{cid}/unblock")
+        resp = await authed_client.post(f"/api/v1/leads/contacts/{cid}/unblock")
         assert resp.status_code == 200
         assert resp.json()["is_blocked"] is False
 
     @pytest.mark.asyncio(loop_scope="session")
-    async def test_bulk_import(self, client):
+    async def test_bulk_import(self, authed_client):
         contacts = [
             {"phone_number": f"0911{uuid4().hex[:7]}", "name": f"Bulk {i}"}
             for i in range(5)
         ]
-        resp = await client.post("/api/v1/leads/contacts/bulk-import", json={
+        resp = await authed_client.post("/api/v1/leads/contacts/bulk-import", json={
             "contacts": contacts
         })
         assert resp.status_code == 200
@@ -107,8 +107,8 @@ class TestLeadsAPI:
         assert data["error_count"] == 0
 
     @pytest.mark.asyncio(loop_scope="session")
-    async def test_create_category(self, client):
-        resp = await client.post("/api/v1/leads/categories", json={
+    async def test_create_category(self, authed_client):
+        resp = await authed_client.post("/api/v1/leads/categories", json={
             "name": f"تست {uuid4().hex[:6]}",
             "description": "دسته‌بندی تست",
             "color": "#3B82F6",
@@ -117,8 +117,8 @@ class TestLeadsAPI:
         assert resp.json()["color"] == "#3B82F6"
 
     @pytest.mark.asyncio(loop_scope="session")
-    async def test_stats_summary(self, client):
-        resp = await client.get("/api/v1/leads/stats/summary")
+    async def test_stats_summary(self, authed_client):
+        resp = await authed_client.get("/api/v1/leads/stats/summary")
         assert resp.status_code == 200
         data = resp.json()
         assert "total_contacts" in data
@@ -129,8 +129,8 @@ class TestCommunicationsAPI:
     """Integration tests for Communications module."""
 
     @pytest.mark.asyncio(loop_scope="session")
-    async def test_create_and_list_templates(self, client):
-        resp = await client.post("/api/v1/communications/templates", json={
+    async def test_create_and_list_templates(self, authed_client):
+        resp = await authed_client.post("/api/v1/communications/templates", json={
             "name": f"قالب تست {uuid4().hex[:6]}",
             "content": "سلام {name}، خوش آمدید!",
             "category": "welcome",
@@ -140,13 +140,13 @@ class TestCommunicationsAPI:
         tmpl = resp.json()
         assert tmpl["character_count"] > 0
 
-        resp = await client.get("/api/v1/communications/templates")
+        resp = await authed_client.get("/api/v1/communications/templates")
         assert resp.status_code == 200
         assert resp.json()["total_count"] >= 1
 
     @pytest.mark.asyncio(loop_scope="session")
-    async def test_send_sms_persists(self, client):
-        resp = await client.post("/api/v1/communications/sms/send", json={
+    async def test_send_sms_persists(self, authed_client):
+        resp = await authed_client.post("/api/v1/communications/sms/send", json={
             "phone_number": "09121234567",
             "content": "تست ارسال پیامک",
         })
@@ -156,16 +156,16 @@ class TestCommunicationsAPI:
         assert data["status"] == "pending"
 
     @pytest.mark.asyncio(loop_scope="session")
-    async def test_sms_logs_list(self, client):
-        resp = await client.get("/api/v1/communications/sms/logs")
+    async def test_sms_logs_list(self, authed_client):
+        resp = await authed_client.get("/api/v1/communications/sms/logs")
         assert resp.status_code == 200
         data = resp.json()
         assert "logs" in data
         assert "total_count" in data
 
     @pytest.mark.asyncio(loop_scope="session")
-    async def test_call_stats(self, client):
-        resp = await client.get("/api/v1/communications/calls/stats")
+    async def test_call_stats(self, authed_client):
+        resp = await authed_client.get("/api/v1/communications/calls/stats")
         assert resp.status_code == 200
         data = resp.json()
         assert "total_calls" in data
@@ -176,8 +176,8 @@ class TestSalesAPI:
     """Integration tests for Sales module."""
 
     @pytest.mark.asyncio(loop_scope="session")
-    async def test_create_and_list_products(self, client):
-        resp = await client.post("/api/v1/sales/products", json={
+    async def test_create_and_list_products(self, authed_client):
+        resp = await authed_client.post("/api/v1/sales/products", json={
             "name": f"سیمان تست {uuid4().hex[:6]}",
             "code": f"CEM-{uuid4().hex[:4].upper()}",
             "category": "cement",
@@ -188,19 +188,19 @@ class TestSalesAPI:
         assert resp.status_code == 201
         pid = resp.json()["id"]
 
-        resp = await client.get(f"/api/v1/sales/products/{pid}")
+        resp = await authed_client.get(f"/api/v1/sales/products/{pid}")
         assert resp.status_code == 200
         assert resp.json()["category"] == "cement"
 
     @pytest.mark.asyncio(loop_scope="session")
-    async def test_list_invoices(self, client):
-        resp = await client.get("/api/v1/sales/invoices")
+    async def test_list_invoices(self, authed_client):
+        resp = await authed_client.get("/api/v1/sales/invoices")
         assert resp.status_code == 200
         assert "invoices" in resp.json()
 
     @pytest.mark.asyncio(loop_scope="session")
-    async def test_sales_stats(self, client):
-        resp = await client.get("/api/v1/sales/stats")
+    async def test_sales_stats(self, authed_client):
+        resp = await authed_client.get("/api/v1/sales/stats")
         assert resp.status_code == 200
         data = resp.json()
         assert "total_invoices" in data
@@ -211,22 +211,22 @@ class TestAnalyticsAPI:
     """Integration tests for Analytics module (mock data)."""
 
     @pytest.mark.asyncio(loop_scope="session")
-    async def test_funnel_metrics(self, client):
-        resp = await client.get("/api/v1/analytics/analytics/funnel")
+    async def test_funnel_metrics(self, authed_client):
+        resp = await authed_client.get("/api/v1/analytics/funnel")
         assert resp.status_code == 200
         data = resp.json()
         assert data["total_leads"] > 0
         assert len(data["stage_counts"]) == 7
 
     @pytest.mark.asyncio(loop_scope="session")
-    async def test_funnel_trend(self, client):
-        resp = await client.get("/api/v1/analytics/analytics/funnel/trend")
+    async def test_funnel_trend(self, authed_client):
+        resp = await authed_client.get("/api/v1/analytics/funnel/trend")
         assert resp.status_code == 200
         assert len(resp.json()["snapshots"]) > 0
 
     @pytest.mark.asyncio(loop_scope="session")
-    async def test_daily_report(self, client):
-        resp = await client.get("/api/v1/analytics/analytics/reports/daily")
+    async def test_daily_report(self, authed_client):
+        resp = await authed_client.get("/api/v1/analytics/reports/daily")
         assert resp.status_code == 200
         assert "leads" in resp.json()
         assert "revenue" in resp.json()
@@ -236,16 +236,16 @@ class TestSegmentationAPI:
     """Integration tests for Segmentation module."""
 
     @pytest.mark.asyncio(loop_scope="session")
-    async def test_rfm_distribution(self, client):
-        resp = await client.get("/api/v1/segments/segmentation/distribution")
+    async def test_rfm_distribution(self, authed_client):
+        resp = await authed_client.get("/api/v1/segments/distribution")
         assert resp.status_code == 200
         data = resp.json()
         assert data["total_contacts"] > 0
         assert len(data["segments"]) == 11  # All RFM segments
 
     @pytest.mark.asyncio(loop_scope="session")
-    async def test_segment_recommendations(self, client):
-        resp = await client.get("/api/v1/segments/segmentation/recommendations/champions")
+    async def test_segment_recommendations(self, authed_client):
+        resp = await authed_client.get("/api/v1/segments/recommendations/champions")
         assert resp.status_code == 200
         data = resp.json()
         assert data["segment"] == "champions"
@@ -256,27 +256,16 @@ class TestTeamAPI:
     """Integration tests for Team module."""
 
     @pytest.mark.asyncio(loop_scope="session")
-    async def test_list_salespeople(self, client):
-        resp = await client.get("/api/v1/team/salespeople")
+    async def test_list_salespeople(self, authed_client):
+        resp = await authed_client.get("/api/v1/team/salespeople")
         assert resp.status_code == 200
         data = resp.json()
         assert len(data["salespeople"]) == 9
 
     @pytest.mark.asyncio(loop_scope="session")
-    async def test_team_performance(self, client):
-        resp = await client.get("/api/v1/team/performance")
+    async def test_team_performance(self, authed_client):
+        resp = await authed_client.get("/api/v1/team/performance")
         assert resp.status_code == 200
-
-
-class TestDashboard:
-    """Test web dashboard."""
-
-    @pytest.mark.asyncio(loop_scope="session")
-    async def test_dashboard_serves_html(self, client):
-        resp = await client.get("/")
-        assert resp.status_code == 200
-        assert "فانلیر" in resp.text
-        assert "<!DOCTYPE html>" in resp.text
 
 
 class TestAuthAPI:
@@ -419,8 +408,8 @@ class TestImportAPI:
     """Integration tests for ETL / Import module."""
 
     @pytest.mark.asyncio(loop_scope="session")
-    async def test_scan_lead_files(self, client):
-        resp = await client.get("/api/v1/import/leads/scan")
+    async def test_scan_lead_files(self, authed_client):
+        resp = await authed_client.get("/api/v1/import/leads/scan")
         assert resp.status_code == 200
         data = resp.json()
         assert "files" in data
@@ -430,25 +419,25 @@ class TestImportAPI:
             assert "category" in data["files"][0]
 
     @pytest.mark.asyncio(loop_scope="session")
-    async def test_scan_call_log_files(self, client):
-        resp = await client.get("/api/v1/import/calls/scan")
+    async def test_scan_call_log_files(self, authed_client):
+        resp = await authed_client.get("/api/v1/import/calls/scan")
         assert resp.status_code == 200
         data = resp.json()
         assert "files" in data
         assert data["count"] >= 0
 
     @pytest.mark.asyncio(loop_scope="session")
-    async def test_upload_leads_rejects_non_excel(self, client):
+    async def test_upload_leads_rejects_non_excel(self, authed_client):
         # Upload a non-Excel file
-        resp = await client.post(
+        resp = await authed_client.post(
             "/api/v1/import/leads/upload",
             files={"file": ("test.txt", b"hello world", "text/plain")},
         )
         assert resp.status_code == 400
 
     @pytest.mark.asyncio(loop_scope="session")
-    async def test_upload_calls_rejects_non_csv(self, client):
-        resp = await client.post(
+    async def test_upload_calls_rejects_non_csv(self, authed_client):
+        resp = await authed_client.post(
             "/api/v1/import/calls/upload",
             files={"file": ("test.xlsx", b"hello", "application/octet-stream")},
         )
@@ -459,32 +448,32 @@ class TestAsyncImportEndpoints:
     """Integration tests for async (Celery-backed) import endpoints."""
 
     @pytest.mark.asyncio(loop_scope="session")
-    async def test_async_leads_rejects_non_excel(self, client):
-        resp = await client.post(
+    async def test_async_leads_rejects_non_excel(self, authed_client):
+        resp = await authed_client.post(
             "/api/v1/import/leads/upload-async",
             files={"file": ("test.txt", b"hello world", "text/plain")},
         )
         assert resp.status_code == 400
 
     @pytest.mark.asyncio(loop_scope="session")
-    async def test_async_calls_rejects_non_csv(self, client):
-        resp = await client.post(
+    async def test_async_calls_rejects_non_csv(self, authed_client):
+        resp = await authed_client.post(
             "/api/v1/import/calls/upload-async",
             files={"file": ("test.xlsx", b"hello", "application/octet-stream")},
         )
         assert resp.status_code == 400
 
     @pytest.mark.asyncio(loop_scope="session")
-    async def test_async_sms_rejects_non_csv(self, client):
-        resp = await client.post(
+    async def test_async_sms_rejects_non_csv(self, authed_client):
+        resp = await authed_client.post(
             "/api/v1/import/sms/upload-async",
             files={"file": ("test.xlsx", b"hello", "application/octet-stream")},
         )
         assert resp.status_code == 400
 
     @pytest.mark.asyncio(loop_scope="session")
-    async def test_async_voip_rejects_invalid_extension(self, client):
-        resp = await client.post(
+    async def test_async_voip_rejects_invalid_extension(self, authed_client):
+        resp = await authed_client.post(
             "/api/v1/import/voip/upload-async",
             files={"file": ("test.csv", b"hello", "text/csv")},
         )
@@ -495,16 +484,16 @@ class TestWebSocketEndpoints:
     """Integration tests for WebSocket-related HTTP endpoints."""
 
     @pytest.mark.asyncio(loop_scope="session")
-    async def test_ws_status(self, client):
-        resp = await client.get("/api/v1/ws/status")
+    async def test_ws_status(self, authed_client):
+        resp = await authed_client.get("/api/v1/ws/status")
         assert resp.status_code == 200
         data = resp.json()
         assert "connections" in data
         assert data["status"] == "active"
 
     @pytest.mark.asyncio(loop_scope="session")
-    async def test_task_status_unknown_task(self, client):
-        resp = await client.get("/api/v1/tasks/nonexistent-task-id")
+    async def test_task_status_unknown_task(self, authed_client):
+        resp = await authed_client.get("/api/v1/tasks/nonexistent-task-id")
         assert resp.status_code == 200
         data = resp.json()
         assert data["task_id"] == "nonexistent-task-id"
@@ -515,15 +504,15 @@ class TestAnalyticsTriggers:
     """Integration tests for analytics trigger endpoints."""
 
     @pytest.mark.asyncio(loop_scope="session")
-    async def test_trigger_funnel_snapshot_endpoint_exists(self, client):
+    async def test_trigger_funnel_snapshot_endpoint_exists(self, authed_client):
         """Test that the endpoint responds (may fail if Celery not running)."""
-        resp = await client.post("/api/v1/import/analytics/funnel-snapshot")
+        resp = await authed_client.post("/api/v1/import/analytics/funnel-snapshot")
         # May be 200 (queued) or 500 (Celery not available)
         assert resp.status_code in (200, 500)
 
     @pytest.mark.asyncio(loop_scope="session")
-    async def test_trigger_rfm_recalculate_endpoint_exists(self, client):
-        resp = await client.post("/api/v1/import/analytics/rfm-recalculate")
+    async def test_trigger_rfm_recalculate_endpoint_exists(self, authed_client):
+        resp = await authed_client.post("/api/v1/import/analytics/rfm-recalculate")
         assert resp.status_code in (200, 500)
 
 

@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 from typing import Any
 from uuid import UUID
 
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -20,20 +20,22 @@ logger = logging.getLogger(__name__)
 
 
 async def _seed_default_tenant():
-    """Create default tenant if it doesn't exist."""
+    """Create default tenant and admin user if they don't exist."""
     from src.infrastructure.database.session import get_session_factory
-    from src.infrastructure.database.models.tenants import TenantModel
+    from src.infrastructure.database.models.tenants import TenantModel, TenantUserModel
 
     factory = get_session_factory()
     async with factory() as session:
         from sqlalchemy import select
-        stmt = select(TenantModel).where(
-            TenantModel.id == UUID("00000000-0000-0000-0000-000000000001")
-        )
+
+        tenant_id = UUID("00000000-0000-0000-0000-000000000001")
+
+        # Seed default tenant
+        stmt = select(TenantModel).where(TenantModel.id == tenant_id)
         result = await session.execute(stmt)
         if not result.scalar_one_or_none():
             tenant = TenantModel(
-                id=UUID("00000000-0000-0000-0000-000000000001"),
+                id=tenant_id,
                 name="فانلیر",
                 slug="funnelier-default",
                 email="admin@funnelier.ir",
@@ -43,7 +45,29 @@ async def _seed_default_tenant():
                 max_users=20,
             )
             session.add(tenant)
-            await session.commit()
+            await session.flush()
+
+        # Seed default admin user
+        stmt = select(TenantUserModel).where(TenantUserModel.username == "admin")
+        result = await session.execute(stmt)
+        if not result.scalar_one_or_none():
+            from passlib.context import CryptContext
+            pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+            admin_user = TenantUserModel(
+                id=UUID("00000000-0000-0000-0000-000000000002"),
+                tenant_id=tenant_id,
+                email="admin@funnelier.ir",
+                username="admin",
+                name="مدیر سیستم",
+                password_hash=pwd_context.hash("admin1234"),
+                role="super_admin",
+                is_active=True,
+                is_approved=True,
+                permissions=[],
+            )
+            session.add(admin_user)
+
+        await session.commit()
 
 
 _redis_listener_task: asyncio.Task | None = None
@@ -160,26 +184,52 @@ def create_app() -> FastAPI:
         team_router,
         tenants_router,
     )
-    from src.web.routes import dashboard_router
     from src.api.websocket import ws_router
-
-    # Web Dashboard
-    app.include_router(dashboard_router, tags=["Dashboard"])
+    from src.modules.auth.api.routes import require_auth
 
     # WebSocket & Task Status
     app.include_router(ws_router, tags=["WebSocket"])
 
-    # API Routes
+    # Auth Routes (no auth required — login/register are public)
     app.include_router(auth_router, prefix="/api/v1", tags=["Auth"])
-    app.include_router(import_router, prefix="/api/v1", tags=["Import"])
-    app.include_router(leads_router, prefix="/api/v1/leads", tags=["Leads"])
-    app.include_router(communications_router, prefix="/api/v1/communications", tags=["Communications"])
-    app.include_router(sales_router, prefix="/api/v1/sales", tags=["Sales"])
-    app.include_router(analytics_router, prefix="/api/v1/analytics", tags=["Analytics"])
-    app.include_router(segments_router, prefix="/api/v1/segments", tags=["Segments"])
-    app.include_router(campaigns_router, prefix="/api/v1", tags=["Campaigns"])
-    app.include_router(team_router, prefix="/api/v1", tags=["Team"])
-    app.include_router(tenants_router, prefix="/api/v1", tags=["Tenants"])
+
+    # Protected API Routes — require authenticated user
+    app.include_router(
+        import_router, prefix="/api/v1",
+        tags=["Import"], dependencies=[Depends(require_auth)],
+    )
+    app.include_router(
+        leads_router, prefix="/api/v1/leads",
+        tags=["Leads"], dependencies=[Depends(require_auth)],
+    )
+    app.include_router(
+        communications_router, prefix="/api/v1/communications",
+        tags=["Communications"], dependencies=[Depends(require_auth)],
+    )
+    app.include_router(
+        sales_router, prefix="/api/v1/sales",
+        tags=["Sales"], dependencies=[Depends(require_auth)],
+    )
+    app.include_router(
+        analytics_router, prefix="/api/v1/analytics",
+        tags=["Analytics"], dependencies=[Depends(require_auth)],
+    )
+    app.include_router(
+        segments_router, prefix="/api/v1/segments",
+        tags=["Segments"], dependencies=[Depends(require_auth)],
+    )
+    app.include_router(
+        campaigns_router, prefix="/api/v1",
+        tags=["Campaigns"], dependencies=[Depends(require_auth)],
+    )
+    app.include_router(
+        team_router, prefix="/api/v1",
+        tags=["Team"], dependencies=[Depends(require_auth)],
+    )
+    app.include_router(
+        tenants_router, prefix="/api/v1",
+        tags=["Tenants"], dependencies=[Depends(require_auth)],
+    )
 
     return app
 

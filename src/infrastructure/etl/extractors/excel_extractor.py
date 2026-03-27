@@ -12,6 +12,8 @@ from pathlib import Path
 from typing import Any, AsyncIterator
 
 import openpyxl
+
+from src.core.utils import normalize_phone_strict
 from openpyxl.utils import get_column_letter
 
 from src.core.interfaces import DataRecord, FileSourceConfig
@@ -286,18 +288,5 @@ class LeadExcelExtractor(ExcelExtractor):
         """Normalize phone number to standard format."""
         if not phone:
             return None
-        # Remove non-digit characters
-        digits = "".join(c for c in str(phone) if c.isdigit())
-        # Handle scientific notation from Excel
-        if "E" in str(phone).upper() or len(digits) > 15:
-            try:
-                digits = str(int(float(phone)))
-            except (ValueError, TypeError):
-                pass
-        # Add country code if missing
-        if digits.startswith("0"):
-            digits = "98" + digits[1:]
-        elif not digits.startswith("98"):
-            digits = "98" + digits
-        return digits if len(digits) >= 10 else None
+        return normalize_phone_strict(str(phone))
 

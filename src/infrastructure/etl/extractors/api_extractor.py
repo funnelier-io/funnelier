@@ -13,6 +13,8 @@ from typing import Any, AsyncIterator
 
 import httpx
 
+from src.core.utils import normalize_phone_strict
+
 from src.core.interfaces import APISourceConfig, DataRecord
 
 from .base import BaseExtractor, ExtractorRegistry
@@ -385,12 +387,7 @@ class KavenegarExtractor(APIExtractor):
         """Normalize phone number."""
         if not phone:
             return None
-        digits = "".join(c for c in str(phone) if c.isdigit())
-        if digits.startswith("0"):
-            digits = "98" + digits[1:]
-        elif not digits.startswith("98"):
-            digits = "98" + digits
-        return digits if len(digits) >= 10 else None
+        return normalize_phone_strict(str(phone))
 
     async def get_delivery_status(
         self,

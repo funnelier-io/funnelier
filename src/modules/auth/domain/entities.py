@@ -31,6 +31,7 @@ class User(TenantEntity[UUID]):
     full_name: str = ""
     role: UserRole = UserRole.VIEWER
     is_active: bool = True
+    is_approved: bool = False
     last_login: datetime | None = None
 
     def has_permission(self, required_role: UserRole) -> bool:

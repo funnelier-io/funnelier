@@ -10,7 +10,9 @@ from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from src.api.dependencies import get_current_tenant_id, get_super_admin
+from src.api.dependencies import get_current_tenant_id
+from src.modules.auth.api.routes import require_auth, require_admin
+from src.modules.auth.domain.entities import UserRole
 
 from .schemas import (
     BillingInfoResponse,
@@ -41,14 +43,14 @@ router = APIRouter(prefix="/tenants", tags=["tenants"])
 
 @router.get("", response_model=TenantListResponse)
 async def list_tenants(
-    is_super_admin: Annotated[bool, Depends(get_super_admin)],
+    admin_user=Depends(require_admin),
     is_active: bool | None = Query(default=None),
     search: str | None = Query(default=None),
 ):
     """
     List all tenants (super admin only).
     """
-    if not is_super_admin:
+    if not admin_user.has_permission(UserRole.SUPER_ADMIN):
         raise HTTPException(status_code=403, detail="Super admin access required")
 
     return TenantListResponse(
@@ -59,13 +61,13 @@ async def list_tenants(
 
 @router.post("", response_model=TenantResponse, status_code=201)
 async def create_tenant(
-    is_super_admin: Annotated[bool, Depends(get_super_admin)],
     request: CreateTenantRequest,
+    admin_user=Depends(require_admin),
 ):
     """
     Create a new tenant (super admin only).
     """
-    if not is_super_admin:
+    if not admin_user.has_permission(UserRole.SUPER_ADMIN):
         raise HTTPException(status_code=403, detail="Super admin access required")
 
     return TenantResponse(
@@ -92,13 +94,13 @@ async def create_tenant(
 async def get_tenant(
     tenant_id: UUID,
     current_tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
-    is_super_admin: Annotated[bool, Depends(get_super_admin)],
+    admin_user=Depends(require_admin),
 ):
     """
     Get tenant details.
     """
     # Allow if super admin or accessing own tenant
-    if not is_super_admin and tenant_id != current_tenant_id:
+    if not admin_user.has_permission(UserRole.SUPER_ADMIN) and tenant_id != current_tenant_id:
         raise HTTPException(status_code=403, detail="Access denied")
 
     raise HTTPException(status_code=404, detail="Tenant not found")
@@ -107,14 +109,14 @@ async def get_tenant(
 @router.put("/{tenant_id}", response_model=TenantResponse)
 async def update_tenant(
     tenant_id: UUID,
-    current_tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
-    is_super_admin: Annotated[bool, Depends(get_super_admin)],
     request: UpdateTenantRequest,
+    current_tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
+    admin_user=Depends(require_admin),
 ):
     """
     Update tenant details.
     """
-    if not is_super_admin and tenant_id != current_tenant_id:
+    if not admin_user.has_permission(UserRole.SUPER_ADMIN) and tenant_id != current_tenant_id:
         raise HTTPException(status_code=403, detail="Access denied")
 
     raise HTTPException(status_code=404, detail="Tenant not found")
@@ -123,12 +125,12 @@ async def update_tenant(
 @router.delete("/{tenant_id}", status_code=204)
 async def delete_tenant(
     tenant_id: UUID,
-    is_super_admin: Annotated[bool, Depends(get_super_admin)],
+    admin_user=Depends(require_admin),
 ):
     """
     Delete a tenant (super admin only).
     """
-    if not is_super_admin:
+    if not admin_user.has_permission(UserRole.SUPER_ADMIN):
         raise HTTPException(status_code=403, detail="Super admin access required")
 
     pass

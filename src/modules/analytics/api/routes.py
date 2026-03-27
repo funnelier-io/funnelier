@@ -13,9 +13,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.dependencies import (
     get_current_tenant_id,
-    get_current_user_id,
     get_db_session,
 )
+from src.modules.auth.api.routes import require_auth
 
 from .schemas import (
     AlertListResponse,
@@ -329,13 +329,14 @@ async def get_salespeople_metrics(
     start_date: datetime = Query(default=None),
     end_date: datetime = Query(default=None),
 ):
-    """Get performance metrics for all salespeople — from real database."""
+    """Get performance metrics for all salespeople — from real database with call log aggregation."""
     if start_date is None:
         start_date = datetime.utcnow() - timedelta(days=30)
     if end_date is None:
         end_date = datetime.utcnow()
 
     from src.infrastructure.database.models.tenants import SalespersonModel
+    from src.infrastructure.database.models.communications import CallLogModel
     from sqlalchemy import select, func
     from src.infrastructure.database.models.leads import ContactModel
 
@@ -345,7 +346,7 @@ async def get_salespeople_metrics(
     db_salespeople = result.scalars().all()
 
     salespeople = []
-    for idx, sp in enumerate(db_salespeople):
+    for sp in db_salespeople:
         # Count assigned leads
         leads_stmt = (
             select(func.count())
@@ -356,24 +357,67 @@ async def get_salespeople_metrics(
         leads_result = await session.execute(leads_stmt)
         assigned_leads = leads_result.scalar_one()
 
+        # Aggregate call metrics
+        call_stmt = (
+            select(
+                func.count().label("total_calls"),
+                func.coalesce(func.sum(CallLogModel.duration_seconds), 0).label("total_duration"),
+                func.count().filter(CallLogModel.status == "answered").label("answered_calls"),
+                func.count().filter(CallLogModel.is_successful.is_(True)).label("successful_calls"),
+            )
+            .where(CallLogModel.tenant_id == tenant_id)
+            .where(CallLogModel.salesperson_id == sp.id)
+            .where(CallLogModel.call_start >= start_date)
+            .where(CallLogModel.call_start <= end_date)
+        )
+        call_result = await session.execute(call_stmt)
+        call_row = call_result.one()
+
+        total_calls = call_row.total_calls or 0
+        answered = call_row.answered_calls or 0
+        successful = call_row.successful_calls or 0
+        total_dur = call_row.total_duration or 0
+        avg_dur = total_dur / total_calls if total_calls > 0 else 0.0
+
+        # Contacted leads (distinct phones called)
+        contacted_stmt = (
+            select(func.count(func.distinct(CallLogModel.phone_number)))
+            .where(CallLogModel.tenant_id == tenant_id)
+            .where(CallLogModel.salesperson_id == sp.id)
+            .where(CallLogModel.call_start >= start_date)
+            .where(CallLogModel.call_start <= end_date)
+        )
+        contacted_result = await session.execute(contacted_stmt)
+        contacted = contacted_result.scalar_one()
+
+        contact_rate = contacted / assigned_leads if assigned_leads > 0 else 0.0
+
         salespeople.append(SalespersonMetricsResponse(
             salesperson_id=sp.id,
             salesperson_name=sp.name,
-            total_calls=0,
-            answered_calls=0,
-            successful_calls=0,
-            total_call_duration=0,
-            average_call_duration=0,
+            total_calls=total_calls,
+            answered_calls=answered,
+            successful_calls=successful,
+            total_call_duration=total_dur,
+            average_call_duration=round(avg_dur, 1),
             assigned_leads=assigned_leads,
-            contacted_leads=0,
-            contact_rate=0.0,
+            contacted_leads=contacted,
+            contact_rate=round(contact_rate, 3),
             conversion_rate=0.0,
             invoices_created=0,
             invoices_paid=0,
-            total_revenue=0,
-            rank_by_revenue=idx + 1,
-            rank_by_conversions=idx + 1,
+            total_revenue=sp.total_revenue or 0,
+            rank_by_revenue=0,
+            rank_by_conversions=0,
         ))
+
+    # Calculate rankings
+    by_revenue = sorted(salespeople, key=lambda x: x.total_revenue, reverse=True)
+    for i, sp in enumerate(by_revenue):
+        sp.rank_by_revenue = i + 1
+    by_calls = sorted(salespeople, key=lambda x: x.total_calls, reverse=True)
+    for i, sp in enumerate(by_calls):
+        sp.rank_by_conversions = i + 1  # rank by calls as proxy
 
     return SalespersonListResponse(
         period_start=start_date,
@@ -577,11 +621,11 @@ async def acknowledge_alert(
     alert_id: UUID,
     tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
     session: Annotated[AsyncSession, Depends(get_db_session)],
-    user_id: Annotated[UUID, Depends(get_current_user_id)],
+    current_user = Depends(require_auth),
 ):
     """Acknowledge an alert."""
     alert_repo = await _get_alert_instance_repo(session, tenant_id)
-    success = await alert_repo.acknowledge(alert_id, user_id)
+    success = await alert_repo.acknowledge(alert_id, current_user.id)
     if not success:
         raise HTTPException(status_code=404, detail="Alert not found")
 

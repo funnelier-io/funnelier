@@ -13,6 +13,8 @@ import json
 
 from dataclasses import dataclass
 
+from src.core.utils import normalize_phone_number
+
 
 @dataclass
 class AsteriskConfig:
@@ -372,17 +374,7 @@ class AsteriskConnector:
 
     def _normalize_phone(self, phone: str) -> str:
         """Normalize phone number."""
-        # Remove common prefixes
-        phone = phone.strip()
-        if phone.startswith("9"):
-            phone = "98" + phone
-        elif phone.startswith("09"):
-            phone = "98" + phone[1:]
-        elif phone.startswith("0098"):
-            phone = phone[2:]
-        elif phone.startswith("+98"):
-            phone = phone[1:]
-        return phone
+        return normalize_phone_number(phone)
 
     def _extract_extension(self, channel: str) -> str | None:
         """Extract extension number from channel string."""

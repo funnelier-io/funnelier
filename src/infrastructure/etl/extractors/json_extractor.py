@@ -14,6 +14,8 @@ from typing import Any, AsyncIterator
 
 import aiofiles
 
+from src.core.utils import normalize_phone_strict
+
 from src.core.interfaces import DataRecord, FileSourceConfig
 
 from .base import BaseExtractor, ExtractorRegistry
@@ -357,12 +359,7 @@ class VoIPLogExtractor(JSONExtractor):
         """Normalize phone number to standard format."""
         if not phone:
             return None
-        digits = "".join(c for c in phone if c.isdigit())
-        if digits.startswith("0"):
-            digits = "98" + digits[1:]
-        elif not digits.startswith("98"):
-            digits = "98" + digits
-        return digits if len(digits) >= 10 else None
+        return normalize_phone_strict(str(phone))
 
     def _parse_timestamp(self, timestamp: str | None) -> datetime | None:
         """Parse timestamp string to datetime."""

@@ -28,7 +28,28 @@ async def app():
 
 @pytest_asyncio.fixture(loop_scope="session", scope="session")
 async def client(app):
-    """Session-scoped async HTTP client."""
+    """Session-scoped async HTTP client (unauthenticated)."""
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        yield ac
+
+
+@pytest_asyncio.fixture(loop_scope="session", scope="session")
+async def admin_headers(client):
+    """Login as default admin and return Authorization headers dict."""
+    resp = await client.post("/api/v1/auth/login", json={
+        "username": "admin", "password": "admin1234",
+    })
+    assert resp.status_code == 200, f"Admin login failed: {resp.text}"
+    token = resp.json()["access_token"]
+    return {"Authorization": f"Bearer {token}"}
+
+
+@pytest_asyncio.fixture(loop_scope="session", scope="session")
+async def authed_client(app, admin_headers):
+    """Session-scoped async HTTP client with admin auth headers."""
+    transport = ASGITransport(app=app)
+    async with AsyncClient(
+        transport=transport, base_url="http://test", headers=admin_headers,
+    ) as ac:
         yield ac

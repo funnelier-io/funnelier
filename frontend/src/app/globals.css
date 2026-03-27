@@ -1,0 +1,68 @@
+@import "tailwindcss";
+
+@font-face {
+  font-family: "Shabnam";
+  src: url("https://cdn.jsdelivr.net/gh/AminFazloon/shabnam-font@main/dist/fonts/Shabnam.woff2")
+    format("woff2");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Shabnam";
+  src: url("https://cdn.jsdelivr.net/gh/AminFazloon/shabnam-font@main/dist/fonts/Shabnam-Bold.woff2")
+    format("woff2");
+  font-weight: bold;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  --color-primary: #2563eb;
+  --color-primary-hover: #1d4ed8;
+  --color-background: #f9fafb;
+  --color-surface: #ffffff;
+  --color-foreground: #1f2937;
+  --color-muted: #9ca3af;
+  --color-border: #e5e7eb;
+}
+
+@theme inline {
+  --font-shabnam: "Shabnam", system-ui, sans-serif;
+}
+
+body {
+  font-family: "Shabnam", system-ui, sans-serif;
+  background: var(--color-background);
+  color: var(--color-foreground);
+}
+
+/* Stat card hover effect */
+.stat-card {
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+/* Funnel bar animation */
+.funnel-bar {
+  transition: width 0.6s ease;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}

@@ -14,6 +14,8 @@ import io
 from dataclasses import dataclass
 from enum import Enum
 
+from src.core.utils import normalize_phone_number
+
 import httpx
 
 
@@ -366,20 +368,7 @@ class KavenegarCSVParser:
     @staticmethod
     def _normalize_phone(phone: str) -> str:
         """Normalize Iranian phone number."""
-        phone = phone.strip().replace(" ", "").replace("-", "")
-
-        if phone.startswith("9") and len(phone) == 10:
-            return "98" + phone
-        elif phone.startswith("09") and len(phone) == 11:
-            return "98" + phone[1:]
-        elif phone.startswith("0098"):
-            return phone[2:]
-        elif phone.startswith("+98"):
-            return phone[1:]
-        elif phone.startswith("98") and len(phone) == 12:
-            return phone
-
-        return phone
+        return normalize_phone_number(phone)
 
 
 class KavenegarConnector:

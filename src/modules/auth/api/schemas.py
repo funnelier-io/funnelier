@@ -40,10 +40,21 @@ class UserResponse(BaseModel):
     full_name: str
     role: str
     is_active: bool
+    is_approved: bool = True
     last_login: datetime | None = None
 
 
 class ChangePasswordRequest(BaseModel):
     old_password: str
     new_password: str = Field(min_length=8)
+
+
+class UpdateUserRoleRequest(BaseModel):
+    role: str = Field(pattern="^(super_admin|tenant_admin|manager|salesperson|viewer)$")
+
+
+class UpdateUserRequest(BaseModel):
+    full_name: str | None = None
+    email: str | None = None
+    is_active: bool | None = None
 
