@@ -28,6 +28,8 @@ from src.infrastructure.database.models import (  # noqa: F401
     InvoiceModel,
     InvoiceLineItemModel,
     PaymentModel,
+    CampaignModel,
+    CampaignRecipientModel,
 )
 
 # this is the Alembic Config object

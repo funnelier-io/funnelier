@@ -192,3 +192,22 @@ async def get_import_log_repository(
     return ImportLogRepository(session, tenant_id)
 
 
+# ──────────────────── Campaign Repositories ─────────────────────
+
+
+async def get_campaign_repository(
+    session: AsyncSession = Depends(get_db_session),
+    tenant_id: UUID = Depends(get_current_tenant_id),
+):
+    from src.modules.campaigns.infrastructure.repositories import CampaignRepository
+    return CampaignRepository(session, tenant_id)
+
+
+async def get_campaign_recipient_repository(
+    session: AsyncSession = Depends(get_db_session),
+    tenant_id: UUID = Depends(get_current_tenant_id),
+):
+    from src.modules.campaigns.infrastructure.repositories import CampaignRecipientRepository
+    return CampaignRecipientRepository(session, tenant_id)
+
+

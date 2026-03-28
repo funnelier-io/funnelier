@@ -1,16 +1,24 @@
 """
 Campaigns API Routes
 
-FastAPI routes for campaign management.
+FastAPI routes for campaign management — wired to PostgreSQL via CampaignRepository.
 """
 
-from datetime import datetime, timedelta
-from typing import Annotated
+from datetime import datetime
+from typing import Annotated, Any
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from src.api.dependencies import get_current_tenant_id
+from src.api.dependencies import (
+    get_current_tenant_id,
+    get_campaign_repository,
+    get_campaign_recipient_repository,
+)
+from src.modules.campaigns.infrastructure.repositories import (
+    CampaignRepository,
+    CampaignRecipientRepository,
+)
 
 from .schemas import (
     ABTestResultsResponse,
@@ -29,9 +37,35 @@ router = APIRouter(prefix="/campaigns", tags=["campaigns"])
 
 
 # ============================================================================
-# Dependencies
+# Helpers
 # ============================================================================
 
+def _model_to_response(model) -> CampaignResponse:
+    """Convert CampaignModel to CampaignResponse."""
+    return CampaignResponse(
+        id=model.id,
+        tenant_id=model.tenant_id,
+        name=model.name,
+        description=model.description,
+        campaign_type=model.campaign_type or "sms",
+        template_id=model.template_id,
+        content=model.message_content,
+        targeting=CampaignTargetingSchema(**(model.targeting or {})) if model.targeting else CampaignTargetingSchema(),
+        schedule=model.schedule,
+        status=model.status,
+        is_active=model.is_active,
+        total_recipients=model.total_recipients,
+        sent_count=model.total_sent,
+        delivered_count=model.total_delivered,
+        failed_count=model.total_failed,
+        response_count=model.total_calls_received,
+        conversion_count=model.total_conversions,
+        started_at=model.started_at,
+        completed_at=model.completed_at,
+        created_at=model.created_at,
+        updated_at=model.updated_at,
+        metadata=model.metadata_ or {},
+    )
 
 
 # ============================================================================
@@ -41,53 +75,26 @@ router = APIRouter(prefix="/campaigns", tags=["campaigns"])
 @router.get("", response_model=CampaignListResponse)
 async def list_campaigns(
     tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
+    repo: CampaignRepository = Depends(get_campaign_repository),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
     status: str | None = Query(default=None),
     campaign_type: str | None = Query(default=None),
     search: str | None = Query(default=None),
 ):
-    """
-    List campaigns with filtering.
-    """
-    # Sample campaigns
-    campaigns = [
-        CampaignResponse(
-            id=uuid4(),
-            tenant_id=tenant_id,
-            name="کمپین خوش‌آمدگویی",
-            description="ارسال پیام خوش‌آمدگویی به سرنخ‌های جدید",
-            campaign_type="sms",
-            template_id=uuid4(),
-            status="running",
-            total_recipients=500,
-            sent_count=480,
-            delivered_count=450,
-            failed_count=30,
-            response_count=50,
-            conversion_count=10,
-            is_active=True,
-            started_at=datetime.utcnow() - timedelta(days=7),
-            created_at=datetime.utcnow() - timedelta(days=14),
-        ),
-        CampaignResponse(
-            id=uuid4(),
-            tenant_id=tenant_id,
-            name="کمپین بازگشت مشتری",
-            description="بازگرداندن مشتریان در خطر ریزش",
-            campaign_type="sms",
-            template_id=uuid4(),
-            targeting=CampaignTargetingSchema(segments=["at_risk", "hibernating"]),
-            status="scheduled",
-            total_recipients=200,
-            is_active=True,
-            created_at=datetime.utcnow() - timedelta(days=3),
-        ),
-    ]
+    """List campaigns with filtering."""
+    skip = (page - 1) * page_size
+    models, total = await repo.list_campaigns(
+        skip=skip,
+        limit=page_size,
+        status=status,
+        campaign_type=campaign_type,
+        search=search,
+    )
 
     return CampaignListResponse(
-        campaigns=campaigns,
-        total_count=len(campaigns),
+        campaigns=[_model_to_response(m) for m in models],
+        total_count=total,
         page=page,
         page_size=page_size,
     )
@@ -97,36 +104,43 @@ async def list_campaigns(
 async def create_campaign(
     tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
     request: CreateCampaignRequest,
+    repo: CampaignRepository = Depends(get_campaign_repository),
 ):
-    """
-    Create a new campaign.
-    """
-    return CampaignResponse(
+    """Create a new campaign."""
+    from src.infrastructure.database.models.campaigns import CampaignModel
+
+    model = CampaignModel(
         id=uuid4(),
         tenant_id=tenant_id,
         name=request.name,
         description=request.description,
         campaign_type=request.campaign_type,
         template_id=request.template_id,
-        content=request.content,
-        targeting=request.targeting,
-        schedule=request.schedule,
+        message_content=request.content,
+        targeting=request.targeting.model_dump() if request.targeting else {},
+        schedule=request.schedule.model_dump(mode="json") if request.schedule else None,
         status="draft",
         is_active=request.is_active,
-        metadata=request.metadata,
-        created_at=datetime.utcnow(),
+        metadata_=request.metadata,
     )
+    repo._session.add(model)
+    await repo._session.flush()
+    await repo._session.refresh(model)
+
+    return _model_to_response(model)
 
 
 @router.get("/{campaign_id}", response_model=CampaignResponse)
 async def get_campaign(
     campaign_id: UUID,
     tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
+    repo: CampaignRepository = Depends(get_campaign_repository),
 ):
-    """
-    Get campaign by ID.
-    """
-    raise HTTPException(status_code=404, detail="Campaign not found")
+    """Get campaign by ID."""
+    model = await repo.get_model(campaign_id)
+    if not model:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    return _model_to_response(model)
 
 
 @router.put("/{campaign_id}", response_model=CampaignResponse)
@@ -134,22 +148,49 @@ async def update_campaign(
     campaign_id: UUID,
     tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
     request: UpdateCampaignRequest,
+    repo: CampaignRepository = Depends(get_campaign_repository),
 ):
-    """
-    Update a campaign.
-    """
-    raise HTTPException(status_code=404, detail="Campaign not found")
+    """Update a campaign (only draft/scheduled)."""
+    model = await repo.get_model(campaign_id)
+    if not model:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    if model.status not in ("draft", "scheduled"):
+        raise HTTPException(status_code=400, detail="Only draft/scheduled campaigns can be edited")
+
+    if request.name is not None:
+        model.name = request.name
+    if request.description is not None:
+        model.description = request.description
+    if request.template_id is not None:
+        model.template_id = request.template_id
+    if request.content is not None:
+        model.message_content = request.content
+    if request.targeting is not None:
+        model.targeting = request.targeting.model_dump()
+    if request.schedule is not None:
+        model.schedule = request.schedule.model_dump(mode="json")
+    if request.is_active is not None:
+        model.is_active = request.is_active
+    if request.metadata is not None:
+        model.metadata_ = request.metadata
+
+    merged = await repo._session.merge(model)
+    await repo._session.flush()
+    await repo._session.refresh(merged)
+    return _model_to_response(merged)
 
 
 @router.delete("/{campaign_id}", status_code=204)
 async def delete_campaign(
     campaign_id: UUID,
     tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
+    repo: CampaignRepository = Depends(get_campaign_repository),
 ):
-    """
-    Delete a campaign.
-    """
-    pass
+    """Delete a campaign."""
+    exists = await repo.exists(campaign_id)
+    if not exists:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    await repo.delete(campaign_id)
 
 
 # ============================================================================
@@ -160,56 +201,106 @@ async def delete_campaign(
 async def start_campaign(
     campaign_id: UUID,
     tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
+    repo: CampaignRepository = Depends(get_campaign_repository),
 ):
-    """
-    Start a campaign.
-    """
-    raise HTTPException(status_code=404, detail="Campaign not found")
+    """Start a campaign."""
+    model = await repo.get_model(campaign_id)
+    if not model:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    if model.status not in ("draft", "scheduled"):
+        raise HTTPException(status_code=400, detail=f"Cannot start campaign in status '{model.status}'")
+
+    updated = await repo.update_status(
+        campaign_id, "running", started_at=datetime.utcnow()
+    )
+    return _model_to_response(updated)
 
 
 @router.post("/{campaign_id}/pause", response_model=CampaignResponse)
 async def pause_campaign(
     campaign_id: UUID,
     tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
+    repo: CampaignRepository = Depends(get_campaign_repository),
 ):
-    """
-    Pause a running campaign.
-    """
-    raise HTTPException(status_code=404, detail="Campaign not found")
+    """Pause a running campaign."""
+    model = await repo.get_model(campaign_id)
+    if not model:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    if model.status != "running":
+        raise HTTPException(status_code=400, detail="Can only pause running campaigns")
+
+    updated = await repo.update_status(campaign_id, "paused")
+    return _model_to_response(updated)
 
 
 @router.post("/{campaign_id}/resume", response_model=CampaignResponse)
 async def resume_campaign(
     campaign_id: UUID,
     tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
+    repo: CampaignRepository = Depends(get_campaign_repository),
 ):
-    """
-    Resume a paused campaign.
-    """
-    raise HTTPException(status_code=404, detail="Campaign not found")
+    """Resume a paused campaign."""
+    model = await repo.get_model(campaign_id)
+    if not model:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    if model.status != "paused":
+        raise HTTPException(status_code=400, detail="Can only resume paused campaigns")
+
+    updated = await repo.update_status(campaign_id, "running")
+    return _model_to_response(updated)
 
 
 @router.post("/{campaign_id}/cancel", response_model=CampaignResponse)
 async def cancel_campaign(
     campaign_id: UUID,
     tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
+    repo: CampaignRepository = Depends(get_campaign_repository),
 ):
-    """
-    Cancel a campaign.
-    """
-    raise HTTPException(status_code=404, detail="Campaign not found")
+    """Cancel a campaign."""
+    model = await repo.get_model(campaign_id)
+    if not model:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+    if model.status == "completed":
+        raise HTTPException(status_code=400, detail="Cannot cancel completed campaigns")
+
+    updated = await repo.update_status(campaign_id, "cancelled")
+    return _model_to_response(updated)
 
 
 @router.post("/{campaign_id}/duplicate", response_model=CampaignResponse)
 async def duplicate_campaign(
     campaign_id: UUID,
     tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
+    repo: CampaignRepository = Depends(get_campaign_repository),
     new_name: str | None = Query(default=None),
 ):
-    """
-    Duplicate a campaign.
-    """
-    raise HTTPException(status_code=404, detail="Campaign not found")
+    """Duplicate a campaign."""
+    model = await repo.get_model(campaign_id)
+    if not model:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+
+    from src.infrastructure.database.models.campaigns import CampaignModel
+
+    dup = CampaignModel(
+        id=uuid4(),
+        tenant_id=tenant_id,
+        name=new_name or f"{model.name} (کپی)",
+        description=model.description,
+        campaign_type=model.campaign_type,
+        template_id=model.template_id,
+        message_content=model.message_content,
+        targeting=model.targeting,
+        schedule=model.schedule,
+        target_segment=model.target_segment,
+        target_filters=model.target_filters,
+        status="draft",
+        is_active=True,
+        metadata_=model.metadata_ or {},
+    )
+    repo._session.add(dup)
+    await repo._session.flush()
+    await repo._session.refresh(dup)
+    return _model_to_response(dup)
 
 
 # ============================================================================
@@ -220,36 +311,39 @@ async def duplicate_campaign(
 async def get_campaign_stats(
     campaign_id: UUID,
     tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
+    repo: CampaignRepository = Depends(get_campaign_repository),
 ):
-    """
-    Get campaign statistics.
-    """
+    """Get campaign statistics."""
+    model = await repo.get_model(campaign_id)
+    if not model:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+
+    sent = model.total_sent or 0
+    delivered = model.total_delivered or 0
+    failed = model.total_failed or 0
+    responses = model.total_calls_received or 0
+    conversions = model.total_conversions or 0
+    revenue = model.total_revenue or 0
+    cost = model.actual_cost or model.estimated_cost or 0
+
     return CampaignStatsResponse(
-        campaign_id=campaign_id,
-        campaign_name="کمپین نمونه",
-        status="running",
-        total_recipients=500,
-        sent_count=480,
-        delivered_count=450,
-        delivery_rate=0.94,
-        failed_count=30,
-        response_count=50,
-        response_rate=0.11,
-        conversion_count=10,
-        conversion_rate=0.02,
-        cost=250_000,
-        revenue=100_000_000,
-        roi=399.0,
-        by_segment=[
-            {"segment": "potential_loyalist", "sent": 200, "delivered": 190, "conversions": 5},
-            {"segment": "at_risk", "sent": 150, "delivered": 140, "conversions": 3},
-            {"segment": "new_customers", "sent": 130, "delivered": 120, "conversions": 2},
-        ],
-        by_day=[
-            {"date": "2025-02-14", "sent": 100, "delivered": 95, "conversions": 2},
-            {"date": "2025-02-15", "sent": 150, "delivered": 140, "conversions": 3},
-            {"date": "2025-02-16", "sent": 230, "delivered": 215, "conversions": 5},
-        ],
+        campaign_id=model.id,
+        campaign_name=model.name,
+        status=model.status,
+        total_recipients=model.total_recipients,
+        sent_count=sent,
+        delivered_count=delivered,
+        delivery_rate=delivered / sent if sent else 0.0,
+        failed_count=failed,
+        response_count=responses,
+        response_rate=responses / delivered if delivered else 0.0,
+        conversion_count=conversions,
+        conversion_rate=conversions / delivered if delivered else 0.0,
+        cost=cost,
+        revenue=revenue,
+        roi=(revenue - cost) / cost if cost else 0.0,
+        by_segment=[],
+        by_day=[],
     )
 
 
@@ -257,16 +351,38 @@ async def get_campaign_stats(
 async def get_campaign_recipients(
     campaign_id: UUID,
     tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
+    repo: CampaignRepository = Depends(get_campaign_repository),
+    recip_repo: CampaignRecipientRepository = Depends(get_campaign_recipient_repository),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
     status: str | None = Query(default=None),
 ):
-    """
-    Get campaign recipients.
-    """
+    """Get campaign recipients."""
+    campaign = await repo.get_model(campaign_id)
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+
+    skip = (page - 1) * page_size
+    models, total = await recip_repo.get_by_campaign(
+        campaign_id, skip=skip, limit=page_size, status=status,
+    )
+
     return CampaignRecipientsListResponse(
-        recipients=[],
-        total_count=0,
+        recipients=[
+            CampaignRecipientResponse(
+                contact_id=m.contact_id,
+                phone_number=m.phone_number,
+                name=m.name,
+                segment=m.segment,
+                status=m.status,
+                sent_at=m.sent_at,
+                delivered_at=m.delivered_at,
+                responded_at=m.responded_at,
+                converted_at=m.converted_at,
+            )
+            for m in models
+        ],
+        total_count=total,
         page=page,
         page_size=page_size,
     )
@@ -276,13 +392,17 @@ async def get_campaign_recipients(
 async def preview_campaign_recipients(
     campaign_id: UUID,
     tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
+    repo: CampaignRepository = Depends(get_campaign_repository),
     limit: int = Query(default=100, ge=1, le=1000),
 ):
-    """
-    Preview recipients that match campaign targeting.
-    """
+    """Preview recipients that match campaign targeting."""
+    campaign = await repo.get_model(campaign_id)
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+
+    # TODO: query contacts matching targeting filters
     return {
-        "total_matching": 500,
+        "total_matching": 0,
         "sample_recipients": [],
     }
 
@@ -295,41 +415,49 @@ async def preview_campaign_recipients(
 async def create_ab_test_campaign(
     tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
     request: CreateABTestCampaignRequest,
+    repo: CampaignRepository = Depends(get_campaign_repository),
 ):
-    """
-    Create an A/B test campaign.
-    """
-    return CampaignResponse(
+    """Create an A/B test campaign."""
+    from src.infrastructure.database.models.campaigns import CampaignModel
+
+    model = CampaignModel(
         id=uuid4(),
         tenant_id=tenant_id,
         name=request.name,
         description=request.description,
         campaign_type=request.campaign_type,
-        targeting=request.targeting,
+        template_id=request.template_id,
+        message_content=request.content,
+        targeting=request.targeting.model_dump() if request.targeting else {},
+        schedule=request.schedule.model_dump(mode="json") if request.schedule else None,
         status="draft",
         is_active=request.is_active,
-        metadata={**request.metadata, "ab_test": True},
-        created_at=datetime.utcnow(),
+        is_ab_test=True,
+        metadata_={**(request.metadata or {}), "ab_test_config": request.ab_test_config.model_dump()},
     )
+    repo._session.add(model)
+    await repo._session.flush()
+    await repo._session.refresh(model)
+    return _model_to_response(model)
 
 
 @router.get("/{campaign_id}/ab-test-results", response_model=ABTestResultsResponse)
 async def get_ab_test_results(
     campaign_id: UUID,
     tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
+    repo: CampaignRepository = Depends(get_campaign_repository),
 ):
-    """
-    Get A/B test results.
-    """
+    """Get A/B test results."""
+    model = await repo.get_model(campaign_id)
+    if not model:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+
     return ABTestResultsResponse(
         campaign_id=campaign_id,
-        variants=[
-            {"name": "A", "sent": 100, "delivered": 95, "conversions": 5, "rate": 0.053},
-            {"name": "B", "sent": 100, "delivered": 92, "conversions": 8, "rate": 0.087},
-        ],
-        winner="B",
-        confidence_level=0.95,
-        test_completed=True,
+        variants=(model.metadata_ or {}).get("ab_test_variants", []),
+        winner=None,
+        confidence_level=None,
+        test_completed=model.status == "completed",
     )
 
 
@@ -337,11 +465,14 @@ async def get_ab_test_results(
 async def select_ab_test_winner(
     campaign_id: UUID,
     tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
+    repo: CampaignRepository = Depends(get_campaign_repository),
     variant_name: str = Query(...),
 ):
-    """
-    Manually select A/B test winner.
-    """
+    """Manually select A/B test winner."""
+    model = await repo.get_model(campaign_id)
+    if not model:
+        raise HTTPException(status_code=404, detail="Campaign not found")
+
     return {
         "campaign_id": str(campaign_id),
         "selected_winner": variant_name,
@@ -358,9 +489,7 @@ async def get_campaign_suggestions_for_segment(
     segment: str,
     tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
 ):
-    """
-    Get campaign suggestions for an RFM segment.
-    """
+    """Get campaign suggestions for an RFM segment."""
     suggestions = {
         "champions": {
             "campaign_types": ["loyalty_reward", "referral", "vip_access"],
@@ -408,10 +537,43 @@ async def get_recommended_templates(
     segment: str | None = Query(default=None),
     campaign_type: str | None = Query(default=None),
 ):
-    """
-    Get recommended templates for campaign.
-    """
-    return {
-        "templates": [],
-    }
+    """Get recommended templates for campaign."""
+    from src.api.dependencies import get_sms_template_repository, get_db_session
+    from src.infrastructure.database.models.communications import SMSTemplateModel
+    from sqlalchemy import select
+    from src.infrastructure.database.session import get_session_factory
 
+    session_factory = get_session_factory()
+    async with session_factory() as session:
+        stmt = (
+            select(SMSTemplateModel)
+            .where(SMSTemplateModel.tenant_id == tenant_id)
+            .where(SMSTemplateModel.is_active.is_(True))
+        )
+        if segment:
+            from sqlalchemy import cast, type_coerce, text
+            from sqlalchemy.dialects.postgresql import JSONB
+            # Use raw SQL for JSON containment since column is JSON not JSONB
+            stmt = stmt.where(
+                cast(SMSTemplateModel.target_segments, JSONB).contains([segment])
+            )
+        stmt = stmt.order_by(SMSTemplateModel.times_used.desc()).limit(20)
+        result = await session.execute(stmt)
+        templates = result.scalars().all()
+
+    return {
+        "templates": [
+            {
+                "id": str(t.id),
+                "name": t.name,
+                "content": t.content,
+                "description": t.description,
+                "category": t.category,
+                "target_segments": t.target_segments,
+                "times_used": t.times_used,
+                "total_delivered": t.total_delivered,
+                "total_conversions": t.total_conversions,
+            }
+            for t in templates
+        ],
+    }

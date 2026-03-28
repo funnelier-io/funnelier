@@ -32,6 +32,10 @@ from .analytics import (
 from .etl import (
     ImportLogModel,
 )
+from .campaigns import (
+    CampaignModel,
+    CampaignRecipientModel,
+)
 
 __all__ = [
     # Tenants
@@ -59,5 +63,8 @@ __all__ = [
     "AlertInstanceModel",
     # ETL
     "ImportLogModel",
+    # Campaigns
+    "CampaignModel",
+    "CampaignRecipientModel",
 ]
 

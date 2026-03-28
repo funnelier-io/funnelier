@@ -13,9 +13,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class DatabaseSettings(BaseSettings):
     """Database connection settings."""
 
-    model_config = SettingsConfigDict(env_prefix="DATABASE_")
+    model_config = SettingsConfigDict(env_prefix="DATABASE_", env_file=".env", extra="ignore")
 
-    url: str = "postgresql+asyncpg://funnelier:funnelier@localhost:5433/funnelier"
+    url: str = "postgresql+asyncpg://funnelier:funnelier@localhost:5436/funnelier"
     pool_size: int = 20
     max_overflow: int = 10
     echo: bool = False
