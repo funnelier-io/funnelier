@@ -116,6 +116,17 @@ class ContactListResponse(BaseModel):
     has_prev: bool
 
 
+class LeadStatsResponse(BaseModel):
+    """Summary stats for leads page."""
+    total_contacts: int = 0
+    active_contacts: int = 0
+    blocked_contacts: int = 0
+    by_stage: dict[str, int] = Field(default_factory=dict)
+    by_category: dict[str, int] = Field(default_factory=dict)
+    by_source: dict[str, int] = Field(default_factory=dict)
+    by_segment: dict[str, int] = Field(default_factory=dict)
+
+
 class ContactStageUpdateRequest(BaseModel):
     """Schema for updating contact's funnel stage."""
     stage: str

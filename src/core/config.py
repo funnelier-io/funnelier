@@ -15,7 +15,7 @@ class DatabaseSettings(BaseSettings):
 
     model_config = SettingsConfigDict(env_prefix="DATABASE_", env_file=".env", extra="ignore")
 
-    url: str = "postgresql+asyncpg://funnelier:funnelier@localhost:5436/funnelier"
+    url: str = "postgresql+asyncpg://funnelier:funnelier@localhost:5435/funnelier"
     pool_size: int = 20
     max_overflow: int = 10
     echo: bool = False
@@ -24,19 +24,19 @@ class DatabaseSettings(BaseSettings):
 class RedisSettings(BaseSettings):
     """Redis connection settings."""
 
-    model_config = SettingsConfigDict(env_prefix="REDIS_")
+    model_config = SettingsConfigDict(env_prefix="REDIS_", env_file=".env", extra="ignore")
 
-    url: str = "redis://localhost:6384/0"
+    url: str = "redis://localhost:6381/0"
     cache_ttl: int = 3600  # 1 hour default
 
 
 class CelerySettings(BaseSettings):
     """Celery task queue settings."""
 
-    model_config = SettingsConfigDict(env_prefix="CELERY_")
+    model_config = SettingsConfigDict(env_prefix="CELERY_", env_file=".env", extra="ignore")
 
-    broker_url: str = "redis://localhost:6384/1"
-    result_backend: str = "redis://localhost:6384/2"
+    broker_url: str = "redis://localhost:6381/1"
+    result_backend: str = "redis://localhost:6381/2"
 
 
 class MongoDBSettings(BaseSettings):

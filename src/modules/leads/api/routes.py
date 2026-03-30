@@ -41,6 +41,7 @@ from .schemas import (
     CreateCategoryRequest,
     CreateContactRequest,
     CreateSourceRequest,
+    LeadStatsResponse,
     SourceListResponse,
     SourceResponse,
     UpdateCategoryRequest,
@@ -112,6 +113,63 @@ def _category_to_response(cat: LeadCategory, contact_count: int = 0) -> Category
 # ============================================================================
 # Contact Endpoints
 # ============================================================================
+
+@router.get("/stats", response_model=LeadStatsResponse)
+async def get_leads_stats(
+    repo: Annotated[ContactRepository, Depends(get_contact_repository)],
+):
+    """Get summary statistics for leads."""
+    from sqlalchemy import select, func
+    from src.infrastructure.database.models.leads import ContactModel
+
+    session = repo._session
+    tid = repo._tenant_id
+
+    # total + active + blocked
+    total = await repo.count()
+    blocked_q = await session.execute(
+        select(func.count()).select_from(ContactModel)
+        .where(ContactModel.tenant_id == tid, ContactModel.is_blocked == True)  # noqa: E712
+    )
+    blocked = blocked_q.scalar_one()
+
+    # by stage
+    stage_counts = await repo.get_stage_counts()
+
+    # by category
+    cat_q = await session.execute(
+        select(ContactModel.category_name, func.count())
+        .where(ContactModel.tenant_id == tid, ContactModel.category_name.isnot(None))
+        .group_by(ContactModel.category_name)
+    )
+    by_category = {row[0]: row[1] for row in cat_q.all()}
+
+    # by source
+    src_q = await session.execute(
+        select(ContactModel.source_name, func.count())
+        .where(ContactModel.tenant_id == tid, ContactModel.source_name.isnot(None))
+        .group_by(ContactModel.source_name)
+    )
+    by_source = {row[0]: row[1] for row in src_q.all()}
+
+    # by rfm_segment
+    seg_q = await session.execute(
+        select(ContactModel.rfm_segment, func.count())
+        .where(ContactModel.tenant_id == tid, ContactModel.rfm_segment.isnot(None))
+        .group_by(ContactModel.rfm_segment)
+    )
+    by_segment = {row[0]: row[1] for row in seg_q.all()}
+
+    return LeadStatsResponse(
+        total_contacts=total,
+        active_contacts=total - blocked,
+        blocked_contacts=blocked,
+        by_stage=stage_counts,
+        by_category=by_category,
+        by_source=by_source,
+        by_segment=by_segment,
+    )
+
 
 @router.get("/contacts", response_model=ContactListResponse)
 async def list_contacts(
