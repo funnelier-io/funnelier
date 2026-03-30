@@ -20,13 +20,16 @@ export interface SMSStats {
 
 export interface CallStats {
   total_calls: number;
-  answered_calls: number;
-  missed_calls: number;
-  outgoing_calls: number;
-  incoming_calls: number;
+  total_answered: number;
+  total_successful: number;
+  answered_calls?: number;
+  missed_calls?: number;
+  outgoing_calls?: number;
+  incoming_calls?: number;
   total_duration: number;
   average_duration: number;
   answer_rate: number;
+  success_rate: number;
 }
 
 export interface SMSLogListResponse {
@@ -34,5 +37,29 @@ export interface SMSLogListResponse {
   total_count: number;
   page: number;
   page_size: number;
+}
+
+export interface CallLog {
+  id: string;
+  phone_number: string;
+  contact_name: string | null;
+  call_type: string;
+  source: string;
+  duration_seconds: number;
+  call_time: string;
+  salesperson_id: string | null;
+  salesperson_name: string | null;
+  is_answered: boolean;
+  is_successful: boolean;
+  created_at: string;
+}
+
+export interface CallLogListResponse {
+  calls: CallLog[];
+  total_count: number;
+  page: number;
+  page_size: number;
+  has_next: boolean;
+  has_prev: boolean;
 }
 

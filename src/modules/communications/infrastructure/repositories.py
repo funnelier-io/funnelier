@@ -189,6 +189,16 @@ class CallLogRepository(SqlAlchemyRepository[CallLogModel, CallLog], ICallLogRep
             metadata_=entity.metadata,
         )
 
+    async def get_all(self, skip: int = 0, limit: int = 100, **filters) -> list[CallLog]:
+        """Override to order call logs by call_start desc."""
+        stmt = self._base_query()
+        for key, value in filters.items():
+            if hasattr(CallLogModel, key) and value is not None:
+                stmt = stmt.where(getattr(CallLogModel, key) == value)
+        stmt = stmt.order_by(CallLogModel.call_start.desc()).offset(skip).limit(limit)
+        result = await self._session.execute(stmt)
+        return [self._to_entity(m) for m in result.scalars().all()]
+
     async def get_by_phone(self, phone_number: str, skip: int = 0, limit: int = 100) -> list[CallLog]:
         stmt = self._base_query().where(CallLogModel.phone_number == phone_number).order_by(CallLogModel.call_start.desc()).offset(skip).limit(limit)
         result = await self._session.execute(stmt)

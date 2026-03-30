@@ -342,12 +342,18 @@ def _call_to_response(c: CallLog) -> CallLogResponse:
     return CallLogResponse(
         id=c.id, tenant_id=c.tenant_id, contact_id=c.contact_id,
         phone_number=c.phone_number,
+        contact_name=getattr(c, 'contact_name', None),
         call_type=c.call_type.value if hasattr(c.call_type, 'value') else c.call_type,
         source=c.source.value if hasattr(c.source, 'value') else c.source,
         duration_seconds=c.duration_seconds, call_time=c.call_time,
         salesperson_id=c.salesperson_id, salesperson_name=c.salesperson_name,
+        salesperson_phone=getattr(c, 'salesperson_phone', None),
+        is_answered=c.duration_seconds > 0,
         is_successful=c.is_successful,
-        voip_call_id=c.voip_call_id, recording_url=c.recording_url,
+        voip_unique_id=getattr(c, 'voip_call_id', None),
+        recording_url=c.recording_url,
+        notes=getattr(c, 'notes', None),
+        metadata=getattr(c, 'metadata', {}),
         created_at=c.created_at,
     )
 

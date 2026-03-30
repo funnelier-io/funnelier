@@ -221,7 +221,7 @@ class CallLogResponse(BaseModel):
     salesperson_id: UUID | None = None
     salesperson_phone: str | None = None
     salesperson_name: str | None = None
-    is_answered: bool
+    is_answered: bool = False
     is_successful: bool
     voip_unique_id: str | None = None
     recording_url: str | None = None
