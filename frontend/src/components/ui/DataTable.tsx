@@ -11,6 +11,7 @@ interface DataTableProps<T = any> {
   data: T[];
   emptyMessage?: string;
   isLoading?: boolean;
+  onRowClick?: (item: T) => void;
 }
 
 export default function DataTable<T>({
@@ -18,6 +19,7 @@ export default function DataTable<T>({
   data,
   emptyMessage = "داده‌ای یافت نشد",
   isLoading = false,
+  onRowClick,
 }: DataTableProps<T>) {
   if (isLoading) {
     return (
@@ -53,7 +55,10 @@ export default function DataTable<T>({
             data.map((item, idx) => (
               <tr
                 key={idx}
-                className="border-b border-gray-100 hover:bg-gray-50 transition-colors"
+                className={`border-b border-gray-100 hover:bg-gray-50 transition-colors${
+                  onRowClick ? " cursor-pointer" : ""
+                }`}
+                onClick={onRowClick ? () => onRowClick(item) : undefined}
               >
                 {columns.map((col) => (
                   <td key={col.key} className="py-2.5 px-2">
@@ -70,4 +75,3 @@ export default function DataTable<T>({
     </div>
   );
 }
-
