@@ -530,8 +530,67 @@ async def get_communication_timeline(
     call_repo: Annotated[CallLogRepository, Depends(get_call_log_repository)],
     limit: int = Query(default=50, ge=1, le=200),
 ):
-    """Get communication timeline for a contact."""
+    """Get communication timeline for a contact — real call + SMS events."""
+    from src.api.dependencies import get_contact_repository, get_current_tenant_id, get_db_session
+    from sqlalchemy import select
+    from src.infrastructure.database.models.leads import ContactModel
+    from src.infrastructure.database.models.communications import CallLogModel, SMSLogModel
+
+    session = call_repo._session
+    tid = call_repo._tenant_id
+
+    # Get contact phone number
+    contact_q = await session.execute(
+        select(ContactModel.phone_number).where(
+            ContactModel.id == contact_id, ContactModel.tenant_id == tid,
+        )
+    )
+    phone_row = contact_q.scalar_one_or_none()
+    phone = phone_row or ""
+
+    events: list[dict] = []
+
+    # Fetch call logs for this contact
+    call_q = await session.execute(
+        select(CallLogModel)
+        .where(CallLogModel.tenant_id == tid, CallLogModel.contact_id == contact_id)
+        .order_by(CallLogModel.call_start.desc())
+        .limit(limit)
+    )
+    for c in call_q.scalars().all():
+        events.append({
+            "type": "call",
+            "timestamp": c.call_start.isoformat() if c.call_start else None,
+            "duration_seconds": c.duration_seconds,
+            "call_type": c.call_type,
+            "status": c.status,
+            "is_successful": c.is_successful,
+            "salesperson_name": c.salesperson_name,
+            "notes": c.notes,
+        })
+
+    # Fetch SMS logs for this phone
+    if phone:
+        sms_q = await session.execute(
+            select(SMSLogModel)
+            .where(SMSLogModel.tenant_id == tid, SMSLogModel.phone_number == phone)
+            .order_by(SMSLogModel.sent_at.desc())
+            .limit(limit)
+        )
+        for s in sms_q.scalars().all():
+            events.append({
+                "type": "sms",
+                "timestamp": s.sent_at.isoformat() if s.sent_at else None,
+                "message": s.message[:100] if s.message else None,
+                "status": s.status,
+                "provider": s.provider,
+            })
+
+    # Sort all events by timestamp desc
+    events.sort(key=lambda e: e.get("timestamp") or "", reverse=True)
+    events = events[:limit]
+
     return CommunicationTimelineResponse(
-        contact_id=contact_id, phone_number="", events=[],
+        contact_id=contact_id, phone_number=phone, events=events,
     )
 

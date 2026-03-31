@@ -1,5 +1,6 @@
 "use client";
 
+import { useApi } from "@/lib/hooks";
 import { fmtNum, fmtDate, fmtCurrency } from "@/lib/utils";
 import { STAGE_LABELS, STAGE_COLORS, SEGMENT_LABELS } from "@/lib/constants";
 import type { Contact } from "@/types/leads";
@@ -50,6 +51,25 @@ const SEGMENT_BG: Record<string, string> = {
   lost: "bg-gray-200 text-gray-500",
 };
 
+interface TimelineEvent {
+  type: "call" | "sms";
+  timestamp: string | null;
+  duration_seconds?: number;
+  call_type?: string;
+  status?: string;
+  is_successful?: boolean;
+  salesperson_name?: string;
+  notes?: string;
+  message?: string;
+  provider?: string;
+}
+
+interface TimelineResponse {
+  contact_id: string;
+  phone_number: string;
+  events: TimelineEvent[];
+}
+
 export default function ContactDetailPanel({ contact, onClose }: ContactDetailPanelProps) {
   const stageLabel = STAGE_LABELS[contact.current_stage] || contact.current_stage;
   const stageColor = STAGE_COLORS[contact.current_stage] || "#6b7280";
@@ -59,6 +79,10 @@ export default function ContactDetailPanel({ contact, onClose }: ContactDetailPa
   const segmentBg = contact.rfm_segment
     ? SEGMENT_BG[contact.rfm_segment] || "bg-gray-100 text-gray-600"
     : "";
+
+  const timeline = useApi<TimelineResponse>(
+    `/communications/timeline/${contact.id}?limit=20`
+  );
 
   return (
     <>
@@ -162,6 +186,60 @@ export default function ContactDetailPanel({ contact, onClose }: ContactDetailPa
             </div>
           </div>
 
+          {/* Communication Timeline */}
+          <div>
+            <h3 className="text-xs font-semibold text-gray-500 mb-3">📅 تاریخچه ارتباطات</h3>
+            {timeline.isLoading ? (
+              <div className="text-xs text-gray-400 text-center py-4">در حال بارگذاری...</div>
+            ) : timeline.data?.events && timeline.data.events.length > 0 ? (
+              <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                {timeline.data.events.map((ev, i) => (
+                  <div key={i} className={`flex items-start gap-2 p-2.5 rounded-lg text-xs ${
+                    ev.type === "call" ? "bg-blue-50" : "bg-purple-50"
+                  }`}>
+                    <span className="shrink-0 mt-0.5">
+                      {ev.type === "call" ? (ev.is_successful ? "✅" : "📞") : "💬"}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-gray-700">
+                          {ev.type === "call" ? "تماس" : "پیامک"}
+                        </span>
+                        {ev.type === "call" && ev.duration_seconds != null && ev.duration_seconds > 0 && (
+                          <span className="text-gray-400" dir="ltr">
+                            {Math.floor(ev.duration_seconds / 60)}:{String(ev.duration_seconds % 60).padStart(2, "0")}
+                          </span>
+                        )}
+                        {ev.status && (
+                          <span className={`px-1.5 py-0.5 rounded text-[10px] ${
+                            ev.is_successful ? "bg-green-100 text-green-700" :
+                            ev.status === "answered" ? "bg-blue-100 text-blue-700" :
+                            "bg-gray-100 text-gray-500"
+                          }`}>
+                            {ev.status}
+                          </span>
+                        )}
+                      </div>
+                      {ev.salesperson_name && (
+                        <div className="text-gray-400 mt-0.5">فروشنده: {ev.salesperson_name}</div>
+                      )}
+                      {ev.message && (
+                        <div className="text-gray-500 mt-0.5 truncate">{ev.message}</div>
+                      )}
+                      {ev.timestamp && (
+                        <div className="text-gray-300 mt-0.5">{fmtDate(ev.timestamp)}</div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-xs text-gray-400 text-center py-4">
+                تاریخچه‌ای موجود نیست
+              </div>
+            )}
+          </div>
+
           {/* Details */}
           <div>
             <h3 className="text-xs font-semibold text-gray-500 mb-2">📋 اطلاعات</h3>
@@ -204,5 +282,4 @@ export default function ContactDetailPanel({ contact, onClose }: ContactDetailPa
     </>
   );
 }
-
 
