@@ -3,7 +3,7 @@
 import { useApi } from "@/lib/hooks";
 import StatCard from "@/components/ui/StatCard";
 import RFMDoughnutChart from "@/components/charts/RFMDoughnutChart";
-import { fmtNum, fmtPercent } from "@/lib/utils";
+import { fmtNum, fmtPercentRaw } from "@/lib/utils";
 import { SEGMENT_LABELS, SEGMENT_COLORS } from "@/lib/constants";
 import type { SegmentDistribution } from "@/types/segments";
 import type { AllRecommendationsResponse, SegmentRecommendation } from "@/types/segments";
@@ -89,7 +89,7 @@ export default function SegmentsPage() {
                 <div className="flex items-center gap-3">
                   <span className="text-sm font-semibold">{fmtNum(s.count)}</span>
                   <span className="text-xs text-gray-400">
-                    {fmtPercent(s.percentage / 100)}
+                    {fmtPercentRaw(s.percentage)}
                   </span>
                 </div>
               </div>

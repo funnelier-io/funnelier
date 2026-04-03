@@ -136,17 +136,20 @@ Funnelier is a **multi-tenant SaaS platform** for marketing funnel analytics, de
 - **Apache Airflow** - ETL orchestration (optional)
 
 ### Frontend
-- **Next.js 14** - React framework
+- **Next.js 16** - React framework (App Router, React Compiler, standalone Docker output)
+- **React 19** - UI library
 - **TypeScript** - Type safety
-- **TailwindCSS** - Styling
-- **shadcn/ui** - Component library
-- **Recharts** - Data visualization
-- **TanStack Query** - Data fetching
+- **Tailwind CSS 4** - Utility-first styling, RTL support
+- **Recharts 3** - Data visualization (bar, line, pie, doughnut)
+- **Zustand 5** - Lightweight state management (auth store)
+- **Custom `useApi` hook** - SWR-style data fetching with JWT auto-refresh
+- **WebSocket** - Real-time event streaming with auto-reconnect
+- **UI Components** - StatCard, DataTable (skeleton loading), DateRangePicker, ErrorAlert, EmptyState, ContactDetailPanel, ToastContainer
 
 ### Infrastructure
 - **Docker** - Containerization
 - **Docker Compose** - Local development
-- **Nginx** - Reverse proxy
+- **Traefik** - Reverse proxy (via shared infra)
 
 ## Multi-Tenancy Strategy
 

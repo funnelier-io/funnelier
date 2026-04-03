@@ -105,6 +105,21 @@ services:
       - ../src:/app/src:ro
     command: celery -A src.infrastructure.messaging.celery_app beat --loglevel=info
 
+  # Frontend (Next.js)
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: ../docker/Dockerfile.frontend
+      args:
+        - NEXT_PUBLIC_API_URL=http://api:8000
+    container_name: funnelier-frontend
+    environment:
+      - NEXT_PUBLIC_API_URL=http://api:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+
 volumes:
   postgres_data:
   redis_data:

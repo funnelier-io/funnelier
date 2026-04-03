@@ -166,6 +166,7 @@ def create_app() -> FastAPI:
                 "tenants": "/api/v1/tenants",
                 "auth": "/api/v1/auth",
                 "import": "/api/v1/import",
+                "search": "/api/v1/search",
                 "tasks": "/api/v1/tasks/{task_id}",
                 "websocket": "/ws",
             },
@@ -184,6 +185,7 @@ def create_app() -> FastAPI:
         team_router,
         tenants_router,
     )
+    from src.api.search import router as search_router
     from src.api.websocket import ws_router
     from src.modules.auth.api.routes import require_auth
 
@@ -229,6 +231,10 @@ def create_app() -> FastAPI:
     app.include_router(
         tenants_router, prefix="/api/v1",
         tags=["Tenants"], dependencies=[Depends(require_auth)],
+    )
+    app.include_router(
+        search_router, prefix="/api/v1",
+        tags=["Search"], dependencies=[Depends(require_auth)],
     )
 
     return app

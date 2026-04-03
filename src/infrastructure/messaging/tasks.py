@@ -235,6 +235,10 @@ def import_call_logs_csv(self, file_content_b64: str, filename: str,
             "duration", "مدت", "طول مکالمه", "Duration"])
         type_col = _find_column(df, [
             "type", "نوع", "Type", "Direction"])
+        date_col = _find_column(df, [
+            "date", "تاریخ", "Date", "تاریخ تماس", "Call Date"])
+        time_col = _find_column(df, [
+            "time", "ساعت", "Time", "زمان", "Call Time"])
 
         session_factory = _get_session_factory()
         imported = 0
@@ -266,6 +270,12 @@ def import_call_logs_csv(self, file_content_b64: str, filename: str,
 
                     is_successful = call_type not in ("missed", "rejected") and duration >= 90
 
+                    # Parse actual call date/time from CSV columns
+                    call_time = _parse_call_datetime(
+                        row.get(date_col) if date_col else None,
+                        row.get(time_col) if time_col else None,
+                    )
+
                     call_log = CallLogEntity(
                         id=uuid4(),
                         tenant_id=tenant_uuid,
@@ -273,7 +283,7 @@ def import_call_logs_csv(self, file_content_b64: str, filename: str,
                         call_type=ct,
                         source=CallSource.MOBILE,
                         duration_seconds=duration,
-                        call_time=datetime.utcnow(),
+                        call_time=call_time,
                         salesperson_name=sp or "unknown",
                         is_successful=is_successful,
                         metadata={"source_file": filename},
@@ -718,7 +728,8 @@ def calculate_rfm_segments(tenant_id: str | None = None):
         from src.infrastructure.database.models.sales import (
             InvoiceModel, PaymentModel,
         )
-        from src.modules.segmentation.domain.services import RFMSegmentationService
+        from src.modules.segmentation.domain.services import RFMCalculationService
+        from src.core.domain import RFMSegment
         from src.core.config import settings
 
         session_factory = _get_session_factory()
@@ -766,7 +777,7 @@ def calculate_rfm_segments(tenant_id: str | None = None):
                         for row in payments_result.fetchall()
                     }
 
-                rfm_service = RFMSegmentationService()
+                rfm_service = RFMCalculationService()
                 segment_counts = {}
 
                 # Update contacts with RFM scores
@@ -784,13 +795,17 @@ def calculate_rfm_segments(tenant_id: str | None = None):
                             if last_payment else 999
                         )
 
-                        profile = rfm_service.calculate_rfm(
-                            recency_days=recency_days,
-                            frequency=frequency,
-                            monetary=monetary,
+                        rfm_score = rfm_service.calculate_score(
+                            days_since_last_purchase=recency_days,
+                            purchase_count=frequency,
+                            total_spend=monetary,
                         )
 
-                        segment_name = profile.segment.value
+                        segment = RFMSegment.from_rfm_score(
+                            rfm_score.recency, rfm_score.frequency, rfm_score.monetary
+                        )
+
+                        segment_name = segment.value
                         segment_counts[segment_name] = segment_counts.get(
                             segment_name, 0) + 1
 
@@ -800,10 +815,10 @@ def calculate_rfm_segments(tenant_id: str | None = None):
                             .where(ContactModel.id == contact.id)
                             .values(
                                 rfm_segment=segment_name,
-                                rfm_score=f"{profile.recency_score}{profile.frequency_score}{profile.monetary_score}",
-                                recency_score=profile.recency_score,
-                                frequency_score=profile.frequency_score,
-                                monetary_score=profile.monetary_score,
+                                rfm_score=f"{rfm_score.recency}{rfm_score.frequency}{rfm_score.monetary}",
+                                recency_score=rfm_score.recency,
+                                frequency_score=rfm_score.frequency,
+                                monetary_score=rfm_score.monetary,
                                 last_rfm_update=now,
                             )
                         )
@@ -1111,4 +1126,77 @@ def _extract_salesperson(filename: str) -> str:
     if " - " in name:
         return name.split(" - ")[-1].strip()
     return name.strip()
+
+
+def _parse_call_datetime(date_val, time_val) -> datetime:
+    """Parse call date/time from CSV columns into a datetime object.
+
+    Handles common Persian/English date and time formats found in
+    phone call log CSV exports.
+    """
+    import re
+
+    now = datetime.utcnow()
+
+    if date_val is None or (hasattr(date_val, '__class__') and str(date_val) in ('nan', 'NaT', '')):
+        return now
+
+    date_str = str(date_val).strip()
+    time_str = str(time_val).strip() if time_val is not None and str(time_val) not in ('nan', 'NaT', '') else ""
+
+    # Try combined date+time parsing first
+    combined = f"{date_str} {time_str}".strip() if time_str else date_str
+    for fmt in [
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%d %H:%M",
+        "%Y/%m/%d %H:%M:%S",
+        "%Y/%m/%d %H:%M",
+        "%d/%m/%Y %H:%M:%S",
+        "%d/%m/%Y %H:%M",
+        "%m/%d/%Y %H:%M:%S",
+        "%m/%d/%Y %H:%M",
+        "%Y-%m-%d",
+        "%Y/%m/%d",
+        "%d/%m/%Y",
+        "%m/%d/%Y",
+    ]:
+        try:
+            return datetime.strptime(combined, fmt)
+        except (ValueError, TypeError):
+            continue
+
+    # Try parsing date portion alone, then add time
+    parsed_date = None
+    # Match YYYY-MM-DD or YYYY/MM/DD
+    m = re.match(r"(\d{4})[/-](\d{1,2})[/-](\d{1,2})", date_str)
+    if m:
+        try:
+            parsed_date = datetime(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+        except ValueError:
+            pass
+
+    if parsed_date is None:
+        # Match DD/MM/YYYY or MM/DD/YYYY
+        m = re.match(r"(\d{1,2})[/-](\d{1,2})[/-](\d{4})", date_str)
+        if m:
+            try:
+                parsed_date = datetime(int(m.group(3)), int(m.group(2)), int(m.group(1)))
+            except ValueError:
+                try:
+                    parsed_date = datetime(int(m.group(3)), int(m.group(1)), int(m.group(2)))
+                except ValueError:
+                    pass
+
+    if parsed_date and time_str:
+        # Parse time portion
+        tm = re.match(r"(\d{1,2}):(\d{2})(?::(\d{2}))?", time_str)
+        if tm:
+            parsed_date = parsed_date.replace(
+                hour=int(tm.group(1)),
+                minute=int(tm.group(2)),
+                second=int(tm.group(3) or 0),
+            )
+
+    return parsed_date or now
+
 

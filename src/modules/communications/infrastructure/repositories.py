@@ -144,6 +144,7 @@ class CallLogRepository(SqlAlchemyRepository[CallLogModel, CallLog], ICallLogRep
             tenant_id=model.tenant_id,
             contact_id=model.contact_id,
             phone_number=model.phone_number,
+            contact_name=model.notes,
             call_type=type_map.get(model.call_type, CallType.OUTGOING),
             source=source_map.get(model.source_type, CallSource.MOBILE),
             duration_seconds=model.duration_seconds,
@@ -239,6 +240,7 @@ class CallLogRepository(SqlAlchemyRepository[CallLogModel, CallLog], ICallLogRep
         base = select(
             func.count().label("total"),
             func.sum(CallLogModel.duration_seconds).label("total_duration"),
+            func.count().filter(CallLogModel.status.in_(["answered", "attempted"])).label("answered"),
             func.count().filter(CallLogModel.is_successful.is_(True)).label("successful"),
         ).where(CallLogModel.tenant_id == self._tenant_id)
         if start_date:
@@ -247,7 +249,12 @@ class CallLogRepository(SqlAlchemyRepository[CallLogModel, CallLog], ICallLogRep
             base = base.where(CallLogModel.call_start <= end_date)
         result = await self._session.execute(base)
         row = result.one()
-        return {"total": row.total, "total_duration": row.total_duration or 0, "successful": row.successful}
+        return {
+            "total": row.total,
+            "total_duration": row.total_duration or 0,
+            "answered": row.answered,
+            "successful": row.successful,
+        }
 
     async def bulk_create(self, logs: list[CallLog]) -> tuple[int, int, list[str]]:
         success, errors_list = 0, []

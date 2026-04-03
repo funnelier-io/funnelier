@@ -9,6 +9,7 @@ import { fmtNum, fmtDate } from "@/lib/utils";
 import {
   CAMPAIGN_STATUS_LABELS,
   CAMPAIGN_TYPE_LABELS,
+  SEGMENT_LABELS,
 } from "@/lib/constants";
 import type {
   Campaign,
@@ -265,6 +266,45 @@ export default function CampaignsPage() {
               className="w-full border rounded-lg px-3 py-2 text-sm"
               placeholder="متن پیامک یا اسکریپت تماس"
             />
+          </div>
+          {/* Target Segments */}
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">
+              بخش‌های هدف (RFM)
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {Object.entries(SEGMENT_LABELS).map(([key, label]) => {
+                const selected = formData.targeting?.segments?.includes(key) ?? false;
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => {
+                      const current = formData.targeting?.segments || [];
+                      const next = selected
+                        ? current.filter((s) => s !== key)
+                        : [...current, key];
+                      setFormData({
+                        ...formData,
+                        targeting: { ...formData.targeting, segments: next },
+                      });
+                    }}
+                    className={`px-2.5 py-1 rounded-lg text-xs transition-colors ${
+                      selected
+                        ? "bg-blue-600 text-white"
+                        : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+            {(formData.targeting?.segments?.length ?? 0) > 0 && (
+              <p className="text-xs text-gray-400 mt-1">
+                {formData.targeting!.segments!.length} بخش انتخاب شده
+              </p>
+            )}
           </div>
           <div className="flex justify-end">
             <button

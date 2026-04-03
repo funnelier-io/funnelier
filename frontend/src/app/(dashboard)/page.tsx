@@ -1,8 +1,11 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { useApi } from "@/lib/hooks";
 import StatCard from "@/components/ui/StatCard";
+import ErrorAlert from "@/components/ui/ErrorAlert";
+import DateRangePicker from "@/components/ui/DateRangePicker";
 import FunnelBarChart from "@/components/charts/FunnelBarChart";
 import RFMDoughnutChart from "@/components/charts/RFMDoughnutChart";
 import TrendLineChart from "@/components/charts/TrendLineChart";
@@ -12,15 +15,26 @@ import type { FunnelMetrics, FunnelTrend, DailyReport, OptimizationResponse } fr
 import type { SegmentDistribution } from "@/types/segments";
 import type { AlertListResponse } from "@/types/alerts";
 
+function daysAgo(n: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return d.toISOString().split("T")[0];
+}
+
 export default function DashboardPage() {
-  const funnel = useApi<FunnelMetrics>("/analytics/funnel");
-  const trend = useApi<FunnelTrend>("/analytics/funnel/trend");
+  const [startDate, setStartDate] = useState(() => daysAgo(30));
+  const [endDate, setEndDate] = useState(() => new Date().toISOString().split("T")[0]);
+
+  const dateQuery = `start_date=${startDate}&end_date=${endDate}`;
+  const funnel = useApi<FunnelMetrics>(`/analytics/funnel?${dateQuery}`);
+  const trend = useApi<FunnelTrend>(`/analytics/funnel/trend?${dateQuery}`);
   const daily = useApi<DailyReport>("/analytics/reports/daily");
   const segments = useApi<SegmentDistribution>("/segments/distribution");
   const optimization = useApi<OptimizationResponse>("/analytics/optimization");
   const alerts = useApi<AlertListResponse>("/analytics/alerts?limit=5");
 
   const isLoading = funnel.isLoading || trend.isLoading || daily.isLoading || segments.isLoading;
+  const hasError = funnel.error || daily.error;
 
   if (isLoading) {
     return (
@@ -32,7 +46,21 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-bold">داشبورد</h1>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <h1 className="text-xl font-bold">داشبورد</h1>
+        <DateRangePicker
+          startDate={startDate}
+          endDate={endDate}
+          onChange={(s, e) => { setStartDate(s); setEndDate(e); }}
+        />
+      </div>
+
+      {hasError && (
+        <ErrorAlert
+          message={funnel.error || daily.error}
+          onRetry={() => { funnel.refetch(); daily.refetch(); }}
+        />
+      )}
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

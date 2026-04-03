@@ -295,10 +295,20 @@ async def get_team_performance(
     end_date: datetime = Query(default=None),
 ):
     """Get team performance summary — from real database."""
-    if start_date is None:
-        start_date = datetime.utcnow() - timedelta(days=30)
     if end_date is None:
         end_date = datetime.utcnow()
+    if start_date is None:
+        # Auto-detect: use earliest call_start from data, or default to 1 year ago
+        earliest_stmt = (
+            select(func.min(CallLogModel.call_start))
+            .where(CallLogModel.tenant_id == tenant_id)
+        )
+        earliest_result = await session.execute(earliest_stmt)
+        earliest = earliest_result.scalar_one_or_none()
+        if earliest:
+            start_date = earliest
+        else:
+            start_date = end_date - timedelta(days=365)
 
     # Get all active salespeople
     stmt = (
@@ -387,10 +397,16 @@ async def get_salesperson_performance(
     end_date: datetime = Query(default=None),
 ):
     """Get performance metrics for a specific salesperson — from real database."""
-    if start_date is None:
-        start_date = datetime.utcnow() - timedelta(days=30)
     if end_date is None:
         end_date = datetime.utcnow()
+    if start_date is None:
+        earliest_stmt = (
+            select(func.min(CallLogModel.call_start))
+            .where(CallLogModel.tenant_id == tenant_id)
+        )
+        earliest_result = await session.execute(earliest_stmt)
+        earliest = earliest_result.scalar_one_or_none()
+        start_date = earliest if earliest else end_date - timedelta(days=365)
 
     # Verify salesperson exists
     stmt = (
@@ -461,10 +477,16 @@ async def compare_salesperson_performance(
     end_date: datetime = Query(default=None),
 ):
     """Compare performance of multiple salespeople — from real database."""
-    if start_date is None:
-        start_date = datetime.utcnow() - timedelta(days=30)
     if end_date is None:
         end_date = datetime.utcnow()
+    if start_date is None:
+        earliest_stmt = (
+            select(func.min(CallLogModel.call_start))
+            .where(CallLogModel.tenant_id == tenant_id)
+        )
+        earliest_result = await session.execute(earliest_stmt)
+        earliest = earliest_result.scalar_one_or_none()
+        start_date = earliest if earliest else end_date - timedelta(days=365)
 
     if not salesperson_ids:
         stmt = (
@@ -519,10 +541,16 @@ async def get_performance_leaderboard(
     end_date: datetime = Query(default=None),
 ):
     """Get salesperson leaderboard by metric — from real database."""
-    if start_date is None:
-        start_date = datetime.utcnow() - timedelta(days=30)
     if end_date is None:
         end_date = datetime.utcnow()
+    if start_date is None:
+        earliest_stmt = (
+            select(func.min(CallLogModel.call_start))
+            .where(CallLogModel.tenant_id == tenant_id)
+        )
+        earliest_result = await session.execute(earliest_stmt)
+        earliest = earliest_result.scalar_one_or_none()
+        start_date = earliest if earliest else end_date - timedelta(days=365)
 
     stmt = (
         select(SalespersonModel)
@@ -662,7 +690,7 @@ async def get_salesperson_daily_summary(
         calls_stmt = (
             select(
                 func.count().label("calls_made"),
-                func.count().filter(CallLogModel.status == "answered").label("calls_answered"),
+                func.count().filter(CallLogModel.status.in_(["answered", "attempted"])).label("calls_answered"),
             )
             .where(CallLogModel.tenant_id == tenant_id)
             .where(CallLogModel.salesperson_id == salesperson_id)

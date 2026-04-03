@@ -356,13 +356,30 @@ class TestAuthAPI:
 
     @pytest.mark.asyncio(loop_scope="session")
     async def test_change_password(self, client):
-        # Register
+        # Register a new user
         uname = f"pwduser_{uuid4().hex[:6]}"
         reg = await client.post("/api/v1/auth/register", json={
             "email": f"{uname}@test.ir", "username": uname,
             "password": "oldpass1234",
         })
-        token = reg.json()["access_token"]
+        user_id = reg.json()["user"]["id"]
+
+        # Login as admin to approve the new user
+        admin_login = await client.post("/api/v1/auth/login", json={
+            "username": "admin", "password": "admin1234",
+        })
+        admin_token = admin_login.json()["access_token"]
+        approve_resp = await client.post(
+            f"/api/v1/auth/users/{user_id}/approve",
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
+        assert approve_resp.status_code == 200
+
+        # Login as the approved user
+        login_resp = await client.post("/api/v1/auth/login", json={
+            "username": uname, "password": "oldpass1234",
+        })
+        token = login_resp.json()["access_token"]
 
         # Change password
         resp = await client.put("/api/v1/auth/me/password", json={

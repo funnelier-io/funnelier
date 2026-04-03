@@ -23,8 +23,29 @@ export default function DataTable<T>({
 }: DataTableProps<T>) {
   if (isLoading) {
     return (
-      <div className="text-center py-8 text-gray-400 text-sm">
-        در حال بارگذاری...
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-right text-gray-400 border-b border-gray-200">
+              {columns.map((col) => (
+                <th key={col.key} className="pb-2 px-2 font-medium">
+                  {col.header}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {Array.from({ length: 5 }).map((_, rowIdx) => (
+              <tr key={rowIdx} className="border-b border-gray-100">
+                {columns.map((col) => (
+                  <td key={col.key} className="py-3 px-2">
+                    <div className="h-3.5 bg-gray-200 rounded animate-pulse" style={{ width: `${55 + ((rowIdx + columns.indexOf(col)) % 4) * 12}%` }} />
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     );
   }

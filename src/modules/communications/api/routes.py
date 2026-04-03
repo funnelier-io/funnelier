@@ -404,20 +404,20 @@ async def get_call_stats(
     salesperson_id: UUID | None = Query(default=None),
 ):
     """Get call statistics for a period."""
-    if start_date is None:
-        start_date = datetime.utcnow() - timedelta(days=30)
-    if end_date is None:
-        end_date = datetime.utcnow()
+    # When no date range specified, get stats for ALL data
     stats = await repo.get_call_stats(start_date, end_date)
     total = stats.get("total", 0)
     successful = stats.get("successful", 0)
+    answered = stats.get("answered", successful)  # fallback
     return CallStatsResponse(
-        period_start=start_date, period_end=end_date,
-        total_calls=total, total_answered=successful,
+        period_start=start_date or datetime(2020, 1, 1),
+        period_end=end_date or datetime.utcnow(),
+        total_calls=total,
+        total_answered=answered,
         total_successful=successful,
         total_duration=stats.get("total_duration", 0),
         average_duration=stats.get("total_duration", 0) // max(total, 1),
-        answer_rate=successful / max(total, 1),
+        answer_rate=answered / max(total, 1),
         success_rate=successful / max(total, 1),
         by_type={}, by_salesperson=[],
     )

@@ -266,6 +266,139 @@ class InvoiceRepository(SqlAlchemyRepository[InvoiceModel, Invoice], IInvoiceRep
         model = result.scalar_one_or_none()
         return self._to_entity(model) if model else None
 
+    async def get_top_customers(self, limit: int = 10, start_date: datetime | None = None, end_date: datetime | None = None) -> list[dict[str, Any]]:
+        """Get top customers ranked by total revenue."""
+        stmt = (
+            select(
+                InvoiceModel.phone_number,
+                func.max(InvoiceModel.customer_name).label("customer_name"),
+                func.sum(InvoiceModel.total_amount).label("total_revenue"),
+                func.count().label("order_count"),
+                func.max(InvoiceModel.issued_at).label("last_order"),
+            )
+            .where(InvoiceModel.tenant_id == self._tenant_id)
+            .where(InvoiceModel.status.notin_(["cancelled", "draft"]))
+            .group_by(InvoiceModel.phone_number)
+            .order_by(func.sum(InvoiceModel.total_amount).desc())
+            .limit(limit)
+        )
+        if start_date:
+            stmt = stmt.where(InvoiceModel.issued_at >= start_date)
+        if end_date:
+            stmt = stmt.where(InvoiceModel.issued_at <= end_date)
+        result = await self._session.execute(stmt)
+        return [
+            {
+                "phone_number": row.phone_number,
+                "customer_name": row.customer_name,
+                "total_revenue": row.total_revenue or 0,
+                "order_count": row.order_count,
+                "last_order": row.last_order.isoformat() if row.last_order else None,
+            }
+            for row in result.all()
+        ]
+
+    async def get_top_products(self, limit: int = 10, start_date: datetime | None = None, end_date: datetime | None = None) -> list[dict[str, Any]]:
+        """Get top products ranked by revenue from line items."""
+        stmt = (
+            select(
+                InvoiceLineItemModel.product_name,
+                InvoiceLineItemModel.product_code,
+                func.sum(InvoiceLineItemModel.quantity).label("quantity_sold"),
+                func.sum(InvoiceLineItemModel.total).label("revenue"),
+                func.count(func.distinct(InvoiceLineItemModel.invoice_id)).label("invoice_count"),
+            )
+            .join(InvoiceModel, InvoiceLineItemModel.invoice_id == InvoiceModel.id)
+            .where(InvoiceModel.tenant_id == self._tenant_id)
+            .where(InvoiceModel.status.notin_(["cancelled", "draft"]))
+            .group_by(InvoiceLineItemModel.product_name, InvoiceLineItemModel.product_code)
+            .order_by(func.sum(InvoiceLineItemModel.total).desc())
+            .limit(limit)
+        )
+        if start_date:
+            stmt = stmt.where(InvoiceModel.issued_at >= start_date)
+        if end_date:
+            stmt = stmt.where(InvoiceModel.issued_at <= end_date)
+        result = await self._session.execute(stmt)
+        return [
+            {
+                "product_name": row.product_name,
+                "product_code": row.product_code,
+                "quantity_sold": row.quantity_sold or 0,
+                "revenue": row.revenue or 0,
+                "invoice_count": row.invoice_count,
+            }
+            for row in result.all()
+        ]
+
+    async def get_revenue_by_period(self, period: str = "daily", start_date: datetime | None = None, end_date: datetime | None = None) -> list[dict[str, Any]]:
+        """Get revenue aggregated by period (daily, weekly, monthly)."""
+        if period == "monthly":
+            date_trunc = func.date_trunc("month", InvoiceModel.issued_at)
+        elif period == "weekly":
+            date_trunc = func.date_trunc("week", InvoiceModel.issued_at)
+        else:
+            date_trunc = func.date_trunc("day", InvoiceModel.issued_at)
+
+        stmt = (
+            select(
+                date_trunc.label("period"),
+                func.sum(InvoiceModel.total_amount).label("revenue"),
+                func.count().label("invoice_count"),
+            )
+            .where(InvoiceModel.tenant_id == self._tenant_id)
+            .where(InvoiceModel.status.notin_(["cancelled", "draft"]))
+            .where(InvoiceModel.issued_at.isnot(None))
+            .group_by(date_trunc)
+            .order_by(date_trunc)
+        )
+        if start_date:
+            stmt = stmt.where(InvoiceModel.issued_at >= start_date)
+        if end_date:
+            stmt = stmt.where(InvoiceModel.issued_at <= end_date)
+        result = await self._session.execute(stmt)
+        rows = result.all()
+        return [
+            {
+                "date": row.period.isoformat() if row.period else None,
+                "revenue": row.revenue or 0,
+                "invoices": row.invoice_count,
+                "aov": (row.revenue or 0) // max(row.invoice_count, 1),
+            }
+            for row in rows
+        ]
+
+    async def count_by_status(self) -> dict[str, int]:
+        """Count invoices grouped by status."""
+        stmt = (
+            select(InvoiceModel.status, func.count().label("cnt"))
+            .where(InvoiceModel.tenant_id == self._tenant_id)
+            .group_by(InvoiceModel.status)
+        )
+        result = await self._session.execute(stmt)
+        return {row.status: row.cnt for row in result.all()}
+
+    async def get_total_amounts(self, status: str | None = None) -> dict[str, int]:
+        """Get sum of total_amount and total paid for invoice list."""
+        stmt = select(
+            func.sum(InvoiceModel.total_amount).label("total_amount"),
+        ).where(InvoiceModel.tenant_id == self._tenant_id)
+        if status and status != "all":
+            stmt = stmt.where(InvoiceModel.status == status)
+        result = await self._session.execute(stmt)
+        row = result.one()
+
+        paid_stmt = select(
+            func.sum(PaymentModel.amount).label("total_paid"),
+        ).where(PaymentModel.tenant_id == self._tenant_id).where(PaymentModel.status == "confirmed")
+        paid_result = await self._session.execute(paid_stmt)
+        paid_row = paid_result.one()
+
+        return {
+            "total_amount": row.total_amount or 0,
+            "total_paid": paid_row.total_paid or 0,
+        }
+
 
 class PaymentRepository(SqlAlchemyRepository[PaymentModel, Payment], IPaymentRepository):
     """SQLAlchemy implementation of IPaymentRepository."""

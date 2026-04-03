@@ -246,6 +246,10 @@ Basic dashboard with:
 4. ✅ **Phase 4** - JWT authentication with RBAC, user management
 5. ✅ **Phase 5** - Web dashboard with live API data, Chart.js charts
 6. ✅ **Phase 6** - Celery background tasks, WebSocket real-time updates, async imports
+7. ✅ **Phase 7** - Wire real data, fix ETL pipeline, analytics & segmentation wired to DB
+8. ✅ **Phase 8** - Sales frontend page, responsive layout, new UI components
+9. ✅ **Phase 9** - Date filtering, skeleton loading, Docker frontend, utility polish
+10. ✅ **Phase 15** - Global Search & Command Palette (⌘+K), unified multi-entity search API
 
 ## Phase 6 Details: Background Tasks & Real-time
 
@@ -367,24 +371,100 @@ Basic dashboard with:
 - Added `get_alert_instance_repository`
 - Added `get_import_log_repository`
 
+## Phase 8: Sales Frontend & Dashboard Polish
+
+### Sales Page (`/sales`)
+- Full Sales dashboard with three tabs: Invoices, Products, Payments
+- **Invoices tab**: paginated invoice list with status filtering (draft, issued, paid, overdue, cancelled), summary banner showing total amounts and payments, Persian status labels and color-coded badges
+- **Products tab**: product catalog with category summary cards, availability status, recommended segments, pricing (base & current), unit display
+- **Payments tab**: payment transactions list with total amount summary, payment method, reference numbers, dates
+- KPI stat cards: total invoices, total revenue, paid count, average order value with conversion rate
+
+### Types & Constants
+- `types/sales.ts`: Product, ProductListResponse, Invoice, InvoiceLineItem, InvoiceListResponse, Payment, PaymentListResponse, SalesStats
+- Added `INVOICE_STATUS_LABELS` and `INVOICE_STATUS_COLORS` to constants
+- Added Sales nav item (`💰 فروش`) to sidebar navigation
+- Exported all sales types from `types/index.ts`
+
+### Dashboard Pages Summary (all 11 pages complete)
+1. `/` — Main dashboard with KPIs, funnel chart, RFM doughnut, trend line, optimization insights, recent alerts
+2. `/leads` — Contact list with search, stage/segment filters, contact detail panel with communication timeline
+3. `/funnel` — Funnel visualization, stage details, conversion rate table, daily trend chart
+4. `/segments` — RFM distribution chart, segment details list, marketing recommendations per segment
+5. `/communications` — Call logs and SMS logs with tabs, call/SMS stats, pagination
+6. `/sales` — Invoices, products, and payments with tabs, status filtering, category summaries
+7. `/campaigns` — Campaign CRUD, status tabs, A/B testing, recipient targeting
+8. `/imports` — File scan, upload, import history, top categories breakdown
+9. `/alerts` — Alert instances with acknowledge, alert rules CRUD, severity indicators
+10. `/team` — Team performance table, KPI cards, top performers & improvement needed
+11. `/settings` — Data source status cards, file scanner, file upload with drag-drop, import history
+
+### Responsive Layout
+- **Mobile sidebar**: collapsible sidebar with hamburger menu, backdrop overlay, auto-close on route change
+- **Desktop**: sidebar always visible with `lg:translate-x-0`, main content offset with `lg:mr-60`
+- **Mobile header**: sticky top bar with hamburger button and centered branding
+- **Responsive padding**: `p-4 lg:p-6` for main content area
+
+### New UI Components
+- `ErrorAlert` — inline error alert with optional retry button, red theme
+- `EmptyState` — zero-data placeholder with icon, title, description, and optional CTA button
+- `SalesBarChart` — vertical bar chart for revenue/sales data with Persian currency formatting
+
+## Phase 9: Date Filtering, Skeleton Loading, Docker & Polish
+
+### Date Range Picker (`DateRangePicker` component)
+- Reusable compact date-range picker with preset buttons (۷ روز, ۳۰ روز, ۹۰ روز, ۱ سال) and custom date inputs
+- Integrated into **Dashboard** (`/`) — funnel & trend API calls now pass `start_date` / `end_date` query params
+- Integrated into **Funnel** (`/funnel`) — same date filtering for funnel metrics and trend data
+- Presets auto-detect active range; custom mode shows native date inputs
+- Zero external dependencies — uses native `<input type="date">`
+
+### DataTable Skeleton Loading
+- Replaced plain-text loading state with animated skeleton rows
+- 5 placeholder rows with `animate-pulse` Tailwind shimmer effect
+- Column headers visible during loading for layout stability
+- Variable-width bars per cell for natural appearance
+
+### Settings Page — Wired Data Sources
+- Replaced 6 hardcoded `DataSourceCard` blocks with dynamic data from `GET /tenants/me/data-sources`
+- Merges API-returned data sources with static infrastructure list (PostgreSQL, Redis, MongoDB, Kavenegar, Asterisk, Excel)
+- Shows last sync time and records synced when available from API
+- Graceful fallback: infrastructure cards show sensible defaults when API returns empty list
+
+### Utility: `fmtPercentRaw`
+- Added `fmtPercentRaw(n)` for values already in 0–100 range (e.g., `85 → ۸۵.۰٪`)
+- Eliminated error-prone `fmtPercent(x / 100)` workaround in Funnel and Segments pages
+- Existing `fmtPercent(n)` unchanged for 0–1 ratio inputs
+
+### Frontend Dockerfile & Docker Compose
+- Created `docker/Dockerfile.frontend` — multi-stage build (deps → build → runner) with `node:20-alpine`
+- Uses Next.js `output: "standalone"` for optimized Docker image (~150MB vs ~1GB)
+- Added `frontend` service to `docker-compose.yml` — port 3000, depends on API, passes `NEXT_PUBLIC_API_URL`
+- Added `make docker-build` target to Makefile
+- `next.config.ts` updated with `output: "standalone"` (compatible with both dev and production)
+
+### Build Status
+- ✅ 15 pages compiled successfully (TypeScript strict mode)
+- ✅ All 11 dashboard pages + login + 404 + layout functional
+
 ## Next Steps
 
-1. **Import Call Logs & SMS Data** - Run actual import of call logs CSV and SMS delivery reports
-2. **Run RFM Calculation** - Execute RFM segmentation task to score all contacts
-3. **CRM/ERP Integration** - Connect to custom MongoDB-based CRM for invoice/payment sync
-4. **Kavenegar API Integration** - Live SMS sending and delivery tracking
-5. **Dashboard Enhancements** - WebSocket-connected real-time updates in UI
+1. **Global Search & Command Palette** - Ctrl+K shortcut, multi-entity search (leads, campaigns, invoices)
+2. **Import Call Logs & SMS Data** - Run actual import of call logs CSV and SMS delivery reports
+3. **Run RFM Calculation** - Execute RFM segmentation task to score all contacts
+4. **CRM/ERP Integration** - Connect to custom MongoDB-based CRM for invoice/payment sync
+5. **Kavenegar API Integration** - Live SMS sending and delivery tracking
 6. **Kubernetes Deployment** - Production manifests and CI/CD pipeline
 
 ## Tech Stack
 
-- **Framework**: FastAPI
+- **Backend**: FastAPI, SQLAlchemy 2.0 (async), Pydantic v2
+- **Frontend**: Next.js 16, React 19, Tailwind CSS 4, Recharts 3, Zustand 5
 - **Database**: PostgreSQL (primary), MongoDB (tenant data)
 - **Cache**: Redis
 - **Task Queue**: Celery with Redis broker
 - **Real-time**: WebSocket + Redis pub/sub
-- **ORM**: SQLAlchemy 2.0 (async)
-- **Validation**: Pydantic v2
 - **VoIP**: Asterisk integration
 - **SMS**: Kavenegar API
+- **Deployment**: Docker Compose (backend + frontend + Celery + PostgreSQL + Redis + MongoDB)
 

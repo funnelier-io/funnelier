@@ -22,22 +22,90 @@ interface ImportHistory {
   completed_at: string | null;
 }
 
+interface DataSourceConfig {
+  id: string;
+  name: string;
+  source_type: string;
+  description: string | null;
+  is_active: boolean;
+  last_sync_at: string | null;
+  last_sync_status: string | null;
+  records_synced: number;
+}
+
+interface DataSourceListResponse {
+  configs: DataSourceConfig[];
+  total_count: number;
+}
+
+// Static infrastructure services (always shown)
+const INFRA_SOURCES: { name: string; description: string; icon: string; sourceType: string }[] = [
+  { name: "PostgreSQL", description: "پایگاه‌داده اصلی", icon: "🐘", sourceType: "postgresql" },
+  { name: "Redis", description: "کش و صف پیام", icon: "🔴", sourceType: "redis" },
+  { name: "MongoDB", description: "فاکتورها و پرداخت‌ها", icon: "🍃", sourceType: "mongodb" },
+  { name: "Kavenegar", description: "سرویس پیامک", icon: "💬", sourceType: "sms_provider" },
+  { name: "Asterisk (VoIP)", description: "تلفن اینترنتی", icon: "📞", sourceType: "voip" },
+  { name: "فایل‌های Excel", description: "لیست سرنخ‌ها", icon: "📊", sourceType: "file" },
+];
+
+const SOURCE_TYPE_ICONS: Record<string, string> = {
+  postgresql: "🐘",
+  redis: "🔴",
+  mongodb: "🍃",
+  sms_provider: "💬",
+  voip: "📞",
+  file: "📊",
+  api: "🔗",
+  mysql: "🐬",
+};
+
 export default function SettingsPage() {
+  // ...existing code for scan/upload state...
   const [scanResult, setScanResult] = useState<ScanResult | null>(null);
   const [scanLoading, setScanLoading] = useState(false);
   const [scanError, setScanError] = useState("");
-
-  // File upload state
   const [uploadType, setUploadType] = useState<string>("leads");
   const [uploadFile_, setUploadFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
-  const [uploadResult, setUploadResult] = useState<{
-    ok: boolean;
-    message: string;
-  } | null>(null);
+  const [uploadResult, setUploadResult] = useState<{ ok: boolean; message: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const history = useApi<ImportHistory[]>("/import/history");
+  const dataSources = useApi<DataSourceListResponse>("/tenants/me/data-sources");
+
+  // Merge API data sources with static infra list
+  const apiConfigs = dataSources.data?.configs || [];
+  const apiByType = new Map(apiConfigs.map((c) => [c.source_type, c]));
+
+  const mergedSources = INFRA_SOURCES.map((infra) => {
+    const apiCfg = apiByType.get(infra.sourceType);
+    return {
+      name: apiCfg?.name || infra.name,
+      description: apiCfg?.description || infra.description,
+      icon: SOURCE_TYPE_ICONS[infra.sourceType] || "📦",
+      status: apiCfg
+        ? apiCfg.is_active ? "connected" as const : "disconnected" as const
+        : infra.sourceType === "postgresql" || infra.sourceType === "redis" || infra.sourceType === "file"
+          ? "connected" as const
+          : "configured" as const,
+      lastSyncAt: apiCfg?.last_sync_at || null,
+      recordsSynced: apiCfg?.records_synced || 0,
+    };
+  });
+
+  // Add any API data sources not in the static list
+  for (const cfg of apiConfigs) {
+    if (!INFRA_SOURCES.some((i) => i.sourceType === cfg.source_type)) {
+      mergedSources.push({
+        name: cfg.name,
+        description: cfg.description || "",
+        icon: SOURCE_TYPE_ICONS[cfg.source_type] || "📦",
+        status: cfg.is_active ? "connected" : "disconnected",
+        lastSyncAt: cfg.last_sync_at,
+        recordsSynced: cfg.records_synced,
+      });
+    }
+  }
 
   const uploadEndpoints: Record<string, { path: string; label: string; accept: string }> = {
     leads: { path: "/import/leads/upload", label: "سرنخ‌ها (Excel)", accept: ".xlsx,.xls" },
@@ -167,46 +235,26 @@ export default function SettingsPage() {
 
       {/* Data Sources */}
       <div className="bg-white rounded-lg shadow p-5">
-        <h2 className="text-sm font-semibold text-gray-700 mb-4">
-          منابع داده
-        </h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-sm font-semibold text-gray-700">
+            منابع داده
+          </h2>
+          {dataSources.isLoading && (
+            <span className="text-xs text-gray-400">بارگذاری...</span>
+          )}
+        </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          <DataSourceCard
-            name="PostgreSQL"
-            description="پایگاه‌داده اصلی"
-            status="connected"
-            icon="🐘"
-          />
-          <DataSourceCard
-            name="Redis"
-            description="کش و صف پیام"
-            status="connected"
-            icon="🔴"
-          />
-          <DataSourceCard
-            name="MongoDB"
-            description="فاکتورها و پرداخت‌ها"
-            status="disconnected"
-            icon="🍃"
-          />
-          <DataSourceCard
-            name="Kavenegar"
-            description="سرویس پیامک"
-            status="configured"
-            icon="💬"
-          />
-          <DataSourceCard
-            name="Asterisk (VoIP)"
-            description="تلفن اینترنتی"
-            status="configured"
-            icon="📞"
-          />
-          <DataSourceCard
-            name="فایل‌های Excel"
-            description="لیست سرنخ‌ها"
-            status="connected"
-            icon="📊"
-          />
+          {mergedSources.map((src) => (
+            <DataSourceCard
+              key={src.name}
+              name={src.name}
+              description={src.description}
+              status={src.status}
+              icon={src.icon}
+              lastSyncAt={src.lastSyncAt}
+              recordsSynced={src.recordsSynced}
+            />
+          ))}
         </div>
       </div>
 
@@ -380,11 +428,15 @@ function DataSourceCard({
   description,
   status,
   icon,
+  lastSyncAt,
+  recordsSynced,
 }: {
   name: string;
   description: string;
   status: "connected" | "disconnected" | "configured";
   icon: string;
+  lastSyncAt?: string | null;
+  recordsSynced?: number;
 }) {
   const statusConfig = {
     connected: { label: "متصل", color: "bg-green-500", textColor: "text-green-700" },
@@ -407,6 +459,14 @@ function DataSourceCard({
           <span className={`text-xs ${cfg.textColor}`}>{cfg.label}</span>
         </div>
       </div>
+      {(lastSyncAt || (recordsSynced != null && recordsSynced > 0)) && (
+        <div className="mt-2 pt-2 border-t border-gray-100 flex items-center justify-between text-xs text-gray-400">
+          {lastSyncAt && <span>آخرین همگام‌سازی: {fmtDate(lastSyncAt)}</span>}
+          {recordsSynced != null && recordsSynced > 0 && (
+            <span>{fmtNum(recordsSynced)} رکورد</span>
+          )}
+        </div>
+      )}
     </div>
   );
 }

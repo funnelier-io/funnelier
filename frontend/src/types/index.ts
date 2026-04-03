@@ -41,3 +41,13 @@ export type {
   AlertListResponse,
   CreateAlertRuleRequest,
 } from "./alerts";
+export type {
+  Product,
+  ProductListResponse,
+  Invoice,
+  InvoiceLineItem,
+  InvoiceListResponse,
+  Payment,
+  PaymentListResponse,
+  SalesStats,
+} from "./sales";

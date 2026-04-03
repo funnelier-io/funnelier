@@ -1,17 +1,29 @@
 "use client";
 
+import { useState } from "react";
 import { useApi } from "@/lib/hooks";
 import StatCard from "@/components/ui/StatCard";
 import FunnelBarChart from "@/components/charts/FunnelBarChart";
 import TrendLineChart from "@/components/charts/TrendLineChart";
 import DataTable from "@/components/ui/DataTable";
-import { fmtNum, fmtPercent, fmtCurrency } from "@/lib/utils";
+import DateRangePicker from "@/components/ui/DateRangePicker";
+import { fmtNum, fmtPercent, fmtPercentRaw, fmtCurrency } from "@/lib/utils";
 import { STAGE_LABELS } from "@/lib/constants";
 import type { FunnelMetrics, FunnelTrend, ConversionRate } from "@/types/analytics";
 
+function daysAgo(n: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return d.toISOString().split("T")[0];
+}
+
 export default function FunnelPage() {
-  const funnel = useApi<FunnelMetrics>("/analytics/funnel");
-  const trend = useApi<FunnelTrend>("/analytics/funnel/trend");
+  const [startDate, setStartDate] = useState(() => daysAgo(30));
+  const [endDate, setEndDate] = useState(() => new Date().toISOString().split("T")[0]);
+
+  const dateQuery = `start_date=${startDate}&end_date=${endDate}`;
+  const funnel = useApi<FunnelMetrics>(`/analytics/funnel?${dateQuery}`);
+  const trend = useApi<FunnelTrend>(`/analytics/funnel/trend?${dateQuery}`);
 
   const conversionColumns = [
     {
@@ -54,7 +66,14 @@ export default function FunnelPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-bold">فانل فروش</h1>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <h1 className="text-xl font-bold">فانل فروش</h1>
+        <DateRangePicker
+          startDate={startDate}
+          endDate={endDate}
+          onChange={(s, e) => { setStartDate(s); setEndDate(e); }}
+        />
+      </div>
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -119,7 +138,7 @@ export default function FunnelPage() {
                   {fmtNum(s.count)}
                 </div>
                 <div className="text-xs text-gray-400">
-                  {fmtPercent(s.percentage / 100)}
+                  {fmtPercentRaw(s.percentage)}
                 </div>
               </div>
             ))}

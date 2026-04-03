@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useRouter, usePathname } from "next/navigation";
 import { useAuthStore } from "@/stores/auth-store";
 import Sidebar from "./Sidebar";
 
@@ -12,6 +12,8 @@ interface AppShellProps {
 export default function AppShell({ children }: AppShellProps) {
   const { checkAuth, isLoading, isAuthenticated } = useAuthStore();
   const router = useRouter();
+  const pathname = usePathname();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
     checkAuth();
@@ -22,6 +24,11 @@ export default function AppShell({ children }: AppShellProps) {
       router.push("/login");
     }
   }, [isLoading, isAuthenticated, router]);
+
+  // Close sidebar on route change (mobile)
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [pathname]);
 
   if (isLoading) {
     return (
@@ -38,8 +45,46 @@ export default function AppShell({ children }: AppShellProps) {
 
   return (
     <>
-      <Sidebar />
-      <main className="mr-60 p-6 min-h-screen">{children}</main>
+      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+
+      {/* Mobile header bar */}
+      <div className="sticky top-0 z-10 lg:hidden bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between">
+        <button
+          onClick={() => setSidebarOpen(true)}
+          className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-600"
+          aria-label="منوی ناوبری"
+        >
+          <svg
+            className="w-5 h-5"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M4 6h16M4 12h16M4 18h16"
+            />
+          </svg>
+        </button>
+        <h1 className="text-base font-bold text-blue-600">🎯 فانلیر</h1>
+        <button
+          onClick={() => {
+            window.dispatchEvent(
+              new KeyboardEvent("keydown", { key: "k", metaKey: true })
+            );
+          }}
+          className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400"
+          aria-label="جستجو"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+        </button>
+      </div>
+
+      <main className="lg:mr-60 p-4 lg:p-6 min-h-screen">{children}</main>
     </>
   );
 }

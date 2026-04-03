@@ -462,13 +462,22 @@ async def list_payments(
 
 
 # ============================================================================
-# Data Source Integration Endpoints
+# Data Source Integration Endpoints (MongoDB CRM/ERP)
 # ============================================================================
+
+# In-memory data source registry (per-tenant) — persisted later via DB
+_data_sources: dict[str, dict] = {}
+
 
 @router.get("/data-sources", response_model=DataSourceListResponse)
 async def list_data_sources(tenant_id: Annotated[UUID, Depends(get_current_tenant_id)]):
     """List configured data sources."""
-    return DataSourceListResponse(sources=[], total_count=0)
+    sources = [
+        DataSourceResponse(**ds)
+        for ds in _data_sources.values()
+        if ds.get("tenant_id") == str(tenant_id)
+    ]
+    return DataSourceListResponse(sources=sources, total_count=len(sources))
 
 
 @router.post("/data-sources", response_model=DataSourceResponse, status_code=201)
@@ -477,23 +486,38 @@ async def create_data_source(
     request: CreateDataSourceRequest,
 ):
     """Create a new data source configuration."""
-    return DataSourceResponse(
-        id=uuid4(), tenant_id=tenant_id, name=request.name,
-        source_type=request.source_type, is_active=request.is_active,
-        metadata=request.metadata, created_at=datetime.utcnow(),
+    ds_id = uuid4()
+    now = datetime.utcnow()
+    ds = DataSourceResponse(
+        id=ds_id, tenant_id=tenant_id, name=request.name,
+        source_type=request.source_type,
+        connection_string=request.connection_string,
+        database_name=request.database_name,
+        collection_name=request.collection_name,
+        field_mappings=request.field_mappings,
+        sync_interval_minutes=request.sync_interval_minutes,
+        is_active=request.is_active,
+        metadata=request.metadata, created_at=now,
     )
+    _data_sources[str(ds_id)] = ds.model_dump(mode="json")
+    return ds
 
 
 @router.get("/data-sources/{source_id}", response_model=DataSourceResponse)
 async def get_data_source(source_id: UUID, tenant_id: Annotated[UUID, Depends(get_current_tenant_id)]):
     """Get data source by ID."""
-    raise HTTPException(status_code=404, detail="Data source not found")
+    ds = _data_sources.get(str(source_id))
+    if not ds or ds.get("tenant_id") != str(tenant_id):
+        raise HTTPException(status_code=404, detail="Data source not found")
+    return DataSourceResponse(**ds)
 
 
 @router.delete("/data-sources/{source_id}", status_code=204)
 async def delete_data_source(source_id: UUID, tenant_id: Annotated[UUID, Depends(get_current_tenant_id)]):
     """Delete a data source."""
-    pass
+    key = str(source_id)
+    if key in _data_sources:
+        del _data_sources[key]
 
 
 @router.post("/data-sources/{source_id}/sync", response_model=SyncDataResponse)
@@ -501,17 +525,104 @@ async def sync_data_source(
     source_id: UUID, tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
     request: SyncDataRequest = None,
 ):
-    """Trigger data sync from a source."""
+    """Trigger data sync from a MongoDB data source."""
+    from sqlalchemy.ext.asyncio import AsyncSession
+    from src.api.dependencies import get_db_session
+    from src.modules.sales.infrastructure.crm_connector import CRMSyncService
+
+    ds = _data_sources.get(str(source_id))
+    if not ds:
+        raise HTTPException(status_code=404, detail="Data source not found")
+
+    mongo_uri = ds.get("connection_string") or "mongodb://mongo:mongo@localhost:27017"
+    mongo_db = ds.get("database_name") or "sivan_land_v2"
+
+    from src.infrastructure.database.session import get_session_factory
+    session_factory = get_session_factory()
+
+    started = datetime.utcnow()
+    async with session_factory() as session:
+        svc = CRMSyncService(mongo_uri, mongo_db, session, tenant_id)
+        results = await svc.full_sync()
+        await session.commit()
+
+    products = results.get("products", {})
+    customers = results.get("customers", {})
+    total_created = products.get("created", 0) + customers.get("created", 0)
+    total_updated = products.get("updated", 0) + customers.get("updated", 0)
+    total_fetched = total_created + total_updated
+
+    # Update data source last_sync info
+    ds["last_sync_at"] = datetime.utcnow().isoformat()
+    ds["last_sync_status"] = results.get("status", "unknown")
+    ds["total_records_synced"] = ds.get("total_records_synced", 0) + total_fetched
+    ds["metadata"] = {**ds.get("metadata", {}), "last_sync_results": results}
+
     return SyncDataResponse(
-        source_id=source_id, sync_started_at=datetime.utcnow(),
-        records_fetched=0, records_created=0, records_updated=0,
+        source_id=source_id, sync_started_at=started,
+        records_fetched=total_fetched, records_created=total_created,
+        records_updated=total_updated,
+        errors=[results.get("error")] if results.get("error") else [],
     )
 
 
 @router.post("/data-sources/{source_id}/test")
 async def test_data_source_connection(source_id: UUID, tenant_id: Annotated[UUID, Depends(get_current_tenant_id)]):
-    """Test connection to a data source."""
-    return {"success": True, "message": "Connection successful"}
+    """Test connection to a MongoDB data source."""
+    from src.modules.sales.infrastructure.crm_connector import CRMSyncService
+
+    ds = _data_sources.get(str(source_id))
+    if not ds:
+        raise HTTPException(status_code=404, detail="Data source not found")
+
+    mongo_uri = ds.get("connection_string") or "mongodb://mongo:mongo@localhost:27017"
+    mongo_db = ds.get("database_name") or "sivan_land_v2"
+
+    svc = CRMSyncService(mongo_uri, mongo_db, None, tenant_id)
+    success, message = await svc.test_connection()
+    await svc.disconnect()
+
+    return {"success": success, "message": message}
+
+
+@router.post("/crm/sync")
+async def sync_crm_data(
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
+    mongo_uri: str = Query(default="mongodb://mongo:mongo@localhost:27017"),
+    database: str = Query(default="sivan_land_v2"),
+):
+    """
+    Quick CRM sync endpoint — sync products and customers from MongoDB.
+    No data-source registration required.
+    """
+    from src.modules.sales.infrastructure.crm_connector import CRMSyncService
+    from src.infrastructure.database.session import get_session_factory
+
+    session_factory = get_session_factory()
+    async with session_factory() as session:
+        svc = CRMSyncService(mongo_uri, database, session, tenant_id)
+        results = await svc.full_sync()
+        await session.commit()
+
+    return results
+
+
+@router.get("/crm/overview")
+async def crm_overview(
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
+    mongo_uri: str = Query(default="mongodb://mongo:mongo@localhost:27017"),
+    database: str = Query(default="sivan_land_v2"),
+):
+    """Get an overview of data available in the CRM MongoDB."""
+    from src.modules.sales.infrastructure.crm_connector import CRMSyncService
+
+    svc = CRMSyncService(mongo_uri, database, None, tenant_id)
+    try:
+        overview = await svc.get_overview()
+        await svc.disconnect()
+        return {"database": database, "collections": overview}
+    except Exception as e:
+        return {"error": str(e)}
 
 
 # ============================================================================

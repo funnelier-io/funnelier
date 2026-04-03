@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useApi } from "@/lib/hooks";
+import { useApi, useDebounce } from "@/lib/hooks";
 import StatCard from "@/components/ui/StatCard";
 import DataTable from "@/components/ui/DataTable";
 import { fmtNum, fmtPercent, fmtDate } from "@/lib/utils";
@@ -46,21 +46,28 @@ export default function CommunicationsPage() {
   const [tab, setTab] = useState<"calls" | "sms">("calls");
   const [callPage, setCallPage] = useState(1);
   const [smsPage, setSmsPage] = useState(1);
+  const [search, setSearch] = useState("");
+  const [callTypeFilter, setCallTypeFilter] = useState<string>("all");
+  const [smsStatusFilter, setSmsStatusFilter] = useState<string>("all");
   const pageSize = 20;
+
+  const debouncedSearch = useDebounce(search, 300);
 
   const smsStats = useApi<SMSStats>("/communications/sms/stats");
   const callStats = useApi<CallStats>("/communications/calls/stats");
 
-  const calls = useApi<CallLogListResponse>(
-    tab === "calls"
-      ? `/communications/calls?page=${callPage}&page_size=${pageSize}`
-      : null
-  );
-  const smsLogs = useApi<SMSLogListResponse>(
-    tab === "sms"
-      ? `/communications/sms/logs?page=${smsPage}&page_size=${pageSize}`
-      : null
-  );
+  // Build calls query with search & filter
+  let callsPath = `/communications/calls?page=${callPage}&page_size=${pageSize}`;
+  if (debouncedSearch) callsPath += `&search=${encodeURIComponent(debouncedSearch)}`;
+  if (callTypeFilter !== "all") callsPath += `&call_type=${callTypeFilter}`;
+
+  // Build SMS query with search & filter
+  let smsPath = `/communications/sms/logs?page=${smsPage}&page_size=${pageSize}`;
+  if (debouncedSearch) smsPath += `&search=${encodeURIComponent(debouncedSearch)}`;
+  if (smsStatusFilter !== "all") smsPath += `&status=${smsStatusFilter}`;
+
+  const calls = useApi<CallLogListResponse>(tab === "calls" ? callsPath : null);
+  const smsLogs = useApi<SMSLogListResponse>(tab === "sms" ? smsPath : null);
 
   const callTotalPages = calls.data
     ? Math.ceil(calls.data.total_count / pageSize)
@@ -211,7 +218,26 @@ export default function CommunicationsPage() {
       {/* Calls Table */}
       {tab === "calls" && (
         <div className="bg-white rounded-lg shadow p-5">
-          <h2 className="text-sm font-semibold text-gray-700 mb-4">لاگ تماس‌ها</h2>
+          <div className="flex flex-wrap items-center gap-3 mb-4">
+            <h2 className="text-sm font-semibold text-gray-700 ml-auto">لاگ تماس‌ها</h2>
+            <select
+              value={callTypeFilter}
+              onChange={(e) => { setCallTypeFilter(e.target.value); setCallPage(1); }}
+              className="px-3 py-1.5 border border-gray-300 rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="all">همه انواع</option>
+              <option value="outgoing">خروجی</option>
+              <option value="incoming">ورودی</option>
+              <option value="missed">از دست رفته</option>
+            </select>
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => { setSearch(e.target.value); setCallPage(1); setSmsPage(1); }}
+              placeholder="جستجو شماره یا نام..."
+              className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm w-52 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
           <DataTable columns={callColumns} data={calls.data?.calls || []} isLoading={calls.isLoading} emptyMessage="تماسی ثبت نشده است" />
           <Pagination page={callPage} totalPages={callTotalPages} setPage={setCallPage} />
         </div>
@@ -220,7 +246,26 @@ export default function CommunicationsPage() {
       {/* SMS Table */}
       {tab === "sms" && (
         <div className="bg-white rounded-lg shadow p-5">
-          <h2 className="text-sm font-semibold text-gray-700 mb-4">لاگ پیامک‌ها</h2>
+          <div className="flex flex-wrap items-center gap-3 mb-4">
+            <h2 className="text-sm font-semibold text-gray-700 ml-auto">لاگ پیامک‌ها</h2>
+            <select
+              value={smsStatusFilter}
+              onChange={(e) => { setSmsStatusFilter(e.target.value); setSmsPage(1); }}
+              className="px-3 py-1.5 border border-gray-300 rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="all">همه وضعیت‌ها</option>
+              <option value="sent">ارسال شده</option>
+              <option value="delivered">تحویل شده</option>
+              <option value="failed">ناموفق</option>
+            </select>
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => { setSearch(e.target.value); setCallPage(1); setSmsPage(1); }}
+              placeholder="جستجو شماره..."
+              className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm w-52 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
           <DataTable columns={smsColumns} data={smsLogs.data?.logs || []} isLoading={smsLogs.isLoading} emptyMessage="پیامکی ثبت نشده است" />
           <Pagination page={smsPage} totalPages={smsTotalPages} setPage={setSmsPage} />
         </div>
