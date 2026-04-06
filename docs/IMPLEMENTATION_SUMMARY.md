@@ -650,11 +650,14 @@ Basic dashboard with:
 - record_audit() helper for instrumenting any endpoint
 - Frontend Activity Log page with search, filters, expandable change diffs
 
-### Phase 24: E2E Browser Tests
-- Playwright or Cypress test suite for critical user flows
-- Login → dashboard → leads → contact detail → communication timeline
-- Import flow, campaign creation, alert acknowledgment
-- CI integration with screenshot on failure
+### Phase 24: E2E Browser Tests ✅
+- Playwright test suite with 26 tests across 5 spec files
+- Auth tests: login page render, valid login, invalid login
+- Navigation tests: all 14 dashboard pages accessible after login
+- Leads tests: stat cards, search, data table, filters
+- Import tests: tabs, stat cards
+- i18n tests: language switching, RTL direction, English rendering
+- Screenshot on failure, video recording for debugging
 
 ### Phase 25: CI/CD Pipeline & Production Deployment
 - GitHub Actions workflow (lint, test, build, deploy)
