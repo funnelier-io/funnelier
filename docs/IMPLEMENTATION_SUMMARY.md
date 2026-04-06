@@ -247,9 +247,18 @@ Basic dashboard with:
 5. ✅ **Phase 5** - Web dashboard with live API data, Chart.js charts
 6. ✅ **Phase 6** - Celery background tasks, WebSocket real-time updates, async imports
 7. ✅ **Phase 7** - Wire real data, fix ETL pipeline, analytics & segmentation wired to DB
-8. ✅ **Phase 8** - Sales frontend page, responsive layout, new UI components
-9. ✅ **Phase 9** - Date filtering, skeleton loading, Docker frontend, utility polish
-10. ✅ **Phase 15** - Global Search & Command Palette (⌘+K), unified multi-entity search API
+8. ✅ **Phase 8** - Import call logs from CSV, update contact funnel stages, create snapshot
+9. ✅ **Phase 9** - Fix web dashboard to use corrected API paths and new data format
+10. ✅ **Phase 10** - Next.js 16 frontend rewrite, campaigns page, alerts page, enhanced dashboard & settings
+11. ✅ **Phase 11** - Wire campaigns to PostgreSQL, RFM calculation, SMS templates
+12. ✅ **Phase 12** - Link call logs to contacts, funnel stages, RFM calculation, imports page
+13. ✅ **Phase 13** - Team setup, call log tabs, salesperson linkage, communications page
+14. ✅ **Phase 14** - Enhanced Leads page with stage/segment filters, contact detail panel
+15. ✅ **Phase 15** - Communication timeline endpoint, contact detail panel timeline
+16. ✅ **Phase 16** - Sales page, responsive layout, date filtering, Command Palette (⌘+K), Docker frontend, polish
+17. ✅ **Phase 17** - Full i18n (Persian/English), next-intl, locale routing, pluggable SMS & ERP interfaces
+18. ✅ **Phase 18** - Live SMS integration (Kavenegar), webhook delivery tracking, balance display, template variables
+19. ✅ **Phase 19** - ERP Sync Dashboard, scheduled sync jobs, Odoo connector, dedup strategies
 
 ## Phase 6 Details: Background Tasks & Real-time
 
@@ -447,19 +456,214 @@ Basic dashboard with:
 - ✅ 15 pages compiled successfully (TypeScript strict mode)
 - ✅ All 11 dashboard pages + login + 404 + layout functional
 
-## Next Steps
+## Phase 17: Multilingual Support (i18n) & Pluggable Connectors
 
-1. **Global Search & Command Palette** - Ctrl+K shortcut, multi-entity search (leads, campaigns, invoices)
-2. **Import Call Logs & SMS Data** - Run actual import of call logs CSV and SMS delivery reports
-3. **Run RFM Calculation** - Execute RFM segmentation task to score all contacts
-4. **CRM/ERP Integration** - Connect to custom MongoDB-based CRM for invoice/payment sync
-5. **Kavenegar API Integration** - Live SMS sending and delivery tracking
-6. **Kubernetes Deployment** - Production manifests and CI/CD pipeline
+### Frontend i18n with next-intl
+- Installed `next-intl` with locale-aware routing (`/fa/...`, `/en/...`)
+- **Routing config** — `src/i18n/routing.ts` defines `fa` (default) and `en` locales, `localePrefix: "as-needed"`
+- **Request config** — `src/i18n/request.ts` loads locale-specific JSON messages
+- **Middleware** — `src/middleware.ts` intercepts requests and redirects to correct locale prefix
+- **Layout** — `[locale]/layout.tsx` wraps app with `NextIntlClientProvider`, sets `dir` (rtl/ltr) and `lang`
+
+### Translation Files
+- `messages/fa.json` — Complete Persian translations for all 11 dashboard pages + common + nav + stages + RFM segments
+- `messages/en.json` — Complete English translations with matching keys
+- All hardcoded Persian strings in pages replaced with `useTranslations()` calls
+- Stage labels, RFM segment labels, campaign statuses, invoice statuses all use translation keys with fallback constants
+
+### RTL/LTR Auto-Switch
+- `dir` attribute set dynamically per locale in root layout
+- Sidebar, DataTable, and other components respect locale direction
+
+### Language Switcher
+- `LocaleSwitcher` component in sidebar switches between Persian and English
+- Uses `useRouter().replace()` from `next-intl/navigation` to change locale prefix
+- `usePathname()` and `Link` from `@/i18n/routing` for locale-aware navigation
+
+### Number & Date Formatting
+- `fmtNum()`, `fmtDate()`, `fmtPercent()` remain locale-agnostic (Persian digits always)
+- Page-level text uses `t()` from `useTranslations()` for all UI strings
+
+### Pluggable SMS/Messaging Provider Interface
+- **Abstract interface** — `src/core/interfaces/messaging.py` (`IMessagingProvider`)
+  - `send_sms()`, `send_bulk_sms()`, `check_status()`, `get_balance()`, `test_connection()`
+  - Data classes: `SendResult`, `StatusResult`, `MessageStatus`, `ProviderInfo`
+- **Mock provider** — `src/infrastructure/connectors/sms/mock_provider.py` for dev/test
+- **Kavenegar provider** — `src/infrastructure/connectors/sms/kavenegar_provider.py` for production
+- **Registry** — `MessagingProviderRegistry` selects provider via `SMS_PROVIDER` env var (default: `mock`)
+- Existing SMS routes updated to use `MessagingProviderRegistry.get()`
+
+### Pluggable ERP/CRM Connector Interface
+- **Abstract interface** — `src/core/interfaces/erp.py` (`IERPConnector`)
+  - `sync_invoices()`, `sync_payments()`, `sync_customers()`, `connect()`, `test_connection()`
+  - Data classes: `ERPInvoice`, `ERPPayment`, `ERPCustomer`, `ConnectorInfo`, `SyncResult`
+- **Mock adapter** — `src/infrastructure/connectors/erp/mock_adapter.py` for dev/test
+- **MongoDB adapter** — `src/infrastructure/connectors/erp/mongodb_adapter.py` for existing CRM
+- **Registry** — `ERPConnectorRegistry` selects adapter via `ERP_CONNECTOR` env var (default: `mock`)
+
+### Updated `__init__.py` Exports
+- `src/core/interfaces/__init__.py` now exports all messaging and ERP interface classes
+- `src/infrastructure/connectors/sms/__init__.py` exports `MessagingProviderRegistry`
+- `src/infrastructure/connectors/erp/__init__.py` exports `ERPConnectorRegistry`
+
+## Phase 18: Live SMS Integration (Kavenegar)
+
+### Enhanced Kavenegar Provider (`src/infrastructure/connectors/sms/kavenegar_provider.py`)
+- **Batch send**: `send_bulk()` now uses Kavenegar's native comma-separated `receptor` API, batching up to 200 recipients per request instead of looping single sends
+- **Extended status codes**: Comprehensive `KAVENEGAR_STATUS_MAP` covering all Kavenegar status codes (1-100) mapped to `MessageStatus` enum
+- **Webhook parsing**: `parse_webhook_payload(data)` method translates Kavenegar webhook POST body into domain `StatusResult`
+- **Cost tracking**: Kavenegar returns cost in Toman; converted to Rial (`×10`) for consistency with the app
+- **Cost estimation**: Static `estimate_cost(content, recipient_count)` method for pre-send estimates based on Persian SMS part calculation (70 chars first part, 67 per additional)
+- **`DEFAULT_COST_PER_PART_RIAL`** constant (680 Rial) for cost estimation
+
+### Wired SMS Sending in Routes (`src/modules/communications/api/routes.py`)
+- **`POST /sms/send`** — now sends via `MessagingProviderRegistry.get()`, persists `SendResult.message_id`, cost, and status back to the SMS log record
+- **`POST /sms/send-bulk`** — queues a `send_bulk_sms_task` Celery task, returns `job_id` for progress tracking, calculates estimated cost
+- **`POST /sms/check-status`** — calls `provider.check_status(message_ids)`, updates DB records with delivery/failure status
+
+### SMS Balance Endpoint
+- **`GET /api/v1/communications/sms/balance`** — calls `provider.get_credit()`, returns `{ balance, currency, provider, is_low }` with low-balance threshold (< 50,000 Toman)
+- `SMSBalanceResponse` Pydantic schema
+
+### Template Variable Substitution & Preview
+- **`POST /api/v1/communications/templates/{id}/preview`** — accepts `{ variables: {...}, contact_id: UUID? }`, resolves `{name}`, `{phone}`, `{company}`, etc., returns rendered text with character count and SMS parts
+- **`GET /api/v1/communications/templates/variables`** — lists supported template variables with descriptions
+- Supported variables: `name`, `phone`, `company`, `invoice_number`, `amount`, `date`
+- Auto-resolves contact fields when `contact_id` provided
+- `TemplatePreviewRequest` and `TemplatePreviewResponse` Pydantic schemas
+
+### Kavenegar Delivery Webhook (`src/modules/communications/api/webhook_routes.py`)
+- **`POST /api/v1/webhooks/kavenegar/delivery`** — receives delivery status callbacks from Kavenegar
+- No JWT auth — validated via shared secret query parameter (`?secret=...`)
+- Parses Kavenegar's callback payload (`messageid`, `status`, `statustext`, `date`)
+- Updates SMS log record in DB: marks delivered or failed
+- Supports both JSON and form-encoded payloads
+- Registered in `main.py` outside auth middleware
+
+### Celery Tasks (`src/infrastructure/messaging/tasks.py`)
+- **`send_bulk_sms_task`** — background task that sends SMS to a list of phone numbers via provider, creates SMSLog records per recipient, reports via WebSocket
+- **`poll_sms_delivery_status`** — fallback polling task: queries SMS logs with `status='sent'` from last 48 hours, batch-checks status via provider, updates DB records
+- Added to Celery beat schedule: polls every 10 minutes
+- Task routing: `poll_*` and `send_*` tasks routed to `notifications` queue
+
+### Database Changes
+- **Alembic migration `f18a0b1c2d3e`**: adds `sms_parts` (Integer, default 1) column to `sms_logs` table; creates `sync_logs` table for ERP sync history
+- **`SyncLogModel`** (`src/infrastructure/database/models/sync.py`): tenant_id, data_source_id, sync_type, direction, status, record counters, timing, errors, triggered_by — with composite indexes on (tenant_id, status), (tenant_id, started_at), (data_source_id, started_at)
+- **`SMSLogModel`**: new `sms_parts` column for multi-part SMS cost tracking
+- **`SMSLogRepository._to_model`**: auto-calculates `sms_parts` from content length
+
+### ERP/CRM Sync API Routes (`src/modules/sales/api/erp_routes.py`)
+- **`GET /api/v1/sales/erp/connectors`** — list available ERP connector types (mock, mongodb)
+- **`GET /api/v1/sales/erp/sources`** — list configured data sources for tenant
+- **`POST /api/v1/sales/erp/sources`** — create new data source configuration
+- **`GET /api/v1/sales/erp/sources/{id}`** — get data source details
+- **`PUT /api/v1/sales/erp/sources/{id}`** — update data source config
+- **`DELETE /api/v1/sales/erp/sources/{id}`** — delete data source
+- **`POST /api/v1/sales/erp/sources/{id}/test`** — test ERP connectivity
+- **`POST /api/v1/sales/erp/sources/{id}/sync`** — trigger sync from data source (full or incremental)
+- **`GET /api/v1/sales/erp/sources/{id}/status`** — detailed sync status with recent logs
+- **`GET /api/v1/sales/erp/sync-history`** — paginated sync operation history with filtering
+- **`POST /api/v1/sales/erp/quick-sync`** — sync using globally configured provider (no data source registration needed)
+
+### ERP Sync Service (`src/modules/sales/infrastructure/erp_sync_service.py`)
+- Orchestrates data sync from ERP connectors into PostgreSQL
+- Invoice sync: create/update by external_id with phone number normalization and contact resolution
+- Payment sync: create/update by external_id with invoice linkage
+- Customer sync: create/update contacts by phone number
+- Full sync: runs invoice → payment → customer in sequence with comprehensive logging
+- Every sync operation recorded in `sync_logs` table with counters and timing
+
+### Configuration
+- **`KavenegarSettings`**: added `webhook_secret` and `callback_url` fields
+- Environment variables: `KAVENEGAR_WEBHOOK_SECRET`, `KAVENEGAR_CALLBACK_URL`
+
+### Frontend Changes
+- **SMS Balance Card**: new `SMSBalanceCard` component in Communications page — shows remaining credit, provider name, low-balance warning
+- **Cost column**: SMS log table now shows per-message cost in Rial
+- **Updated types**: `SMSLog` type gains `cost`, `sms_parts`, `content`, `provider_message_id`, `provider_name` fields; new `SMSBalance`, `TemplateVariable`, `TemplatePreviewResponse` types
+
+## Phase 19: ERP Sync Dashboard & Scheduled Jobs
+
+### Data Sync Page (`/data-sync`)
+- **New dashboard page** with three tabs: Data Sources, Sync History, Connectors
+- **KPI cards**: Total data sources, active sources, total records synced, last sync time
+- **Data Sources tab**: full list with type icon, status indicator, schedule badge, last sync date/status, record count, and action buttons (test, sync, edit, delete)
+- **Sync History tab**: paginated table of all sync operations with type, direction (pull/push), status badge, record counts (created/updated/failed), duration, triggered by (manual/scheduled), date, error messages
+- **Connectors tab**: available ERP connector types (Mock, MongoDB, Odoo) with feature badges (invoices, payments, customers, products); deduplication strategy reference cards
+- **Add/Edit Source modal**: form with name, connector type selector, connection URL, database, username/password (Odoo), description, sync interval, active toggle
+- **Test Connection**: inline connection test button per source with success/failure feedback
+- **Trigger Sync**: manual sync button per source with result summary (created/updated/failed counts)
+- **Delete Source**: confirmation dialog before deletion
+
+### TypeScript Types (`types/erp-sync.ts`)
+- `ConnectorInfo`, `DataSource`, `DataSourceListResponse`, `SyncLog`, `SyncHistoryResponse`, `SyncStatus`, `SyncResult`, `ConnectionTestResult`, `DedupStrategy`
+- `DataSourceCreateRequest`, `DataSourceUpdateRequest`, `ScheduleUpdateRequest`
+- Exported from `types/index.ts`
+
+### Navigation
+- Added `🔄 Data Sync` nav item between Imports and Alerts in sidebar
+
+### i18n Translations
+- Added `dataSync` namespace to `fa.json` and `en.json` with 90+ keys covering all page labels, form fields, status values, table columns, action messages, connector types, and dedup strategies
+- Added `nav.dataSync` translation key for sidebar navigation
+
+### Backend (already implemented in Phase 18)
+- **ERP Sync API** (`/api/v1/sales/erp/*`): CRUD for data sources, trigger sync, test connection, sync history, schedule management, dedup strategies
+- **Odoo ERP Adapter** (`odoo_adapter.py`): XML-RPC connector for Odoo 14–17+, syncs invoices, payments, customers via `account.move`, `account.payment`, `res.partner` models
+- **Connector Registry**: mock, mongodb, odoo adapters auto-registered; selectable via `ERP_PROVIDER` env var
+- **Celery Beat**: scheduled ERP sync every 15 minutes (checks `sync_interval_minutes` per source)
+- **ERP Sync Service**: orchestrates invoice → payment → customer sync with `sync_logs` table recording
+
+### Build Status
+- ✅ 16 pages compiled successfully (TypeScript strict mode, 32 static pages for fa/en)
+- ✅ All 12 dashboard pages + login + 404 + layout functional
+
+## Next Steps (Roadmap)
+
+
+### Phase 20: Export & Reporting
+- PDF report generation (funnel summary, team performance, RFM breakdown)
+- Excel/CSV export for contacts, invoices, call logs, SMS logs
+- Scheduled email reports (daily/weekly digest)
+- Custom report builder with date range and filter selection
+
+### Phase 21: Notification Center
+- In-app notification panel (bell icon with badge count)
+- Read/unread state, mark all as read
+- Notification preferences per user (email, SMS, in-app)
+- Push notification support (Web Push API)
+
+### Phase 22: User Management UI
+- Admin panel for user CRUD (create, edit, deactivate users)
+- Role assignment interface (super_admin, tenant_admin, manager, salesperson, viewer)
+- User activity log and last login tracking
+- Invitation flow with email verification
+
+### Phase 23: Audit Trail & Activity Log
+- Track all user actions (CRUD operations, imports, exports, logins)
+- Filterable activity log page with user, action type, timestamp
+- Data change history (before/after snapshots)
+- Compliance-ready audit export
+
+### Phase 24: E2E Browser Tests
+- Playwright or Cypress test suite for critical user flows
+- Login → dashboard → leads → contact detail → communication timeline
+- Import flow, campaign creation, alert acknowledgment
+- CI integration with screenshot on failure
+
+### Phase 25: CI/CD Pipeline & Production Deployment
+- GitHub Actions workflow (lint, test, build, deploy)
+- Docker image registry (GitHub Container Registry or ECR)
+- Kubernetes manifests (Deployment, Service, Ingress, ConfigMap, Secrets)
+- Database migrations in CI pipeline
+- Staging → Production promotion workflow
+- Health check and readiness probes
+- Horizontal Pod Autoscaler for API and Celery workers
 
 ## Tech Stack
 
 - **Backend**: FastAPI, SQLAlchemy 2.0 (async), Pydantic v2
-- **Frontend**: Next.js 16, React 19, Tailwind CSS 4, Recharts 3, Zustand 5
+- **Frontend**: Next.js 16, React 19, Tailwind CSS 4, Recharts 3, Zustand 5, next-intl 4 (i18n)
 - **Database**: PostgreSQL (primary), MongoDB (tenant data)
 - **Cache**: Redis
 - **Task Queue**: Celery with Redis broker

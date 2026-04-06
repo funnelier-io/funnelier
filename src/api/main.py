@@ -168,6 +168,8 @@ def create_app() -> FastAPI:
                 "import": "/api/v1/import",
                 "search": "/api/v1/search",
                 "tasks": "/api/v1/tasks/{task_id}",
+                "webhooks": "/api/v1/webhooks",
+                "export": "/api/v1/export",
                 "websocket": "/ws",
             },
         }
@@ -184,16 +186,22 @@ def create_app() -> FastAPI:
         campaigns_router,
         team_router,
         tenants_router,
+        export_router,
     )
     from src.api.search import router as search_router
     from src.api.websocket import ws_router
     from src.modules.auth.api.routes import require_auth
+    from src.modules.communications.api.webhook_routes import webhook_router
+    from src.modules.sales.api.erp_routes import router as erp_router
 
     # WebSocket & Task Status
     app.include_router(ws_router, tags=["WebSocket"])
 
     # Auth Routes (no auth required — login/register are public)
     app.include_router(auth_router, prefix="/api/v1", tags=["Auth"])
+
+    # Webhook Routes (no auth — validated via shared secret)
+    app.include_router(webhook_router, prefix="/api/v1", tags=["Webhooks"])
 
     # Protected API Routes — require authenticated user
     app.include_router(
@@ -235,6 +243,14 @@ def create_app() -> FastAPI:
     app.include_router(
         search_router, prefix="/api/v1",
         tags=["Search"], dependencies=[Depends(require_auth)],
+    )
+    app.include_router(
+        erp_router, prefix="/api/v1/sales",
+        tags=["ERP Sync"], dependencies=[Depends(require_auth)],
+    )
+    app.include_router(
+        export_router, prefix="/api/v1",
+        tags=["Export & Reporting"], dependencies=[Depends(require_auth)],
     )
 
     return app

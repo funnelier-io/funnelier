@@ -36,6 +36,7 @@ from .schemas import (
     ImportCallLogsRequest,
     ImportCallLogsResponse,
     SendSMSRequest,
+    SMSBalanceResponse,
     SMSDeliveryStatusRequest,
     SMSDeliveryStatusResponse,
     SMSLogListResponse,
@@ -46,6 +47,8 @@ from .schemas import (
     SyncVoIPLogsRequest,
     SyncVoIPLogsResponse,
     TemplatePerformanceResponse,
+    TemplatePreviewRequest,
+    TemplatePreviewResponse,
     UpdateSMSTemplateRequest,
     VoIPConfigResponse,
 )
@@ -63,24 +66,56 @@ async def send_sms(
     tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
     request: SendSMSRequest,
 ):
-    """Send a single SMS message."""
+    """Send a single SMS message via the configured provider."""
+    from src.infrastructure.connectors.sms import MessagingProviderRegistry
+    from src.core.interfaces.messaging import MessageStatus
+    from datetime import timezone
+
+    provider = MessagingProviderRegistry.get()
+
+    # Resolve template content if template_id provided
+    content = request.content
+
+    # Calculate SMS parts
+    char_count = len(content)
+    sms_parts = 1 if char_count <= 70 else (char_count + 66) // 67
+
+    # Create the log record first
     sms = SMSLog(
         tenant_id=tenant_id,
         contact_id=request.contact_id,
         phone_number=request.phone_number,
         direction=SMSDirection.OUTBOUND,
-        content=request.content,
+        content=content,
         template_id=request.template_id,
         status=SMSStatus.PENDING,
         campaign_id=request.campaign_id,
-        provider_name="kavenegar",
+        provider_name=provider.get_info().name,
     )
     saved = await repo.add(sms)
+
+    # Send via provider
+    result = await provider.send(request.phone_number, content)
+
+    # Update the log with provider result
+    if result.status == MessageStatus.SENT or result.status == MessageStatus.DELIVERED:
+        saved.mark_sent(provider_message_id=result.message_id)
+        saved.cost = int(result.cost or 0)
+    elif result.status == MessageStatus.FAILED:
+        saved.mark_failed(result.error_message or "Provider send failed")
+    saved.provider_message_id = result.message_id
+
+    await repo.update(saved)
+
     return SMSLogResponse(
         id=saved.id, tenant_id=saved.tenant_id, contact_id=saved.contact_id,
         phone_number=saved.phone_number, direction="outbound", content=saved.content,
-        template_id=saved.template_id, status=saved.status.value if hasattr(saved.status, 'value') else saved.status,
+        template_id=saved.template_id,
+        status=saved.status.value if hasattr(saved.status, 'value') else saved.status,
+        provider_message_id=saved.provider_message_id,
         campaign_id=saved.campaign_id, provider_name=saved.provider_name,
+        cost=saved.cost,
+        sent_at=saved.sent_at,
         created_at=saved.created_at,
     )
 
@@ -90,13 +125,39 @@ async def send_bulk_sms(
     tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
     request: BulkSendSMSRequest,
 ):
-    """Send SMS to multiple recipients."""
+    """Send SMS to multiple recipients. Queues a background task."""
+    from src.infrastructure.connectors.sms import MessagingProviderRegistry
+    from src.infrastructure.connectors.sms.kavenegar_provider import DEFAULT_COST_PER_PART_RIAL
+
     recipients = 0
-    if request.contact_ids:
+    phone_numbers: list[str] = []
+    if request.phone_numbers:
+        phone_numbers = request.phone_numbers
+        recipients = len(phone_numbers)
+    elif request.contact_ids:
         recipients = len(request.contact_ids)
-    elif request.phone_numbers:
-        recipients = len(request.phone_numbers)
-    return BulkSendSMSResponse(total_queued=recipients, estimated_cost=recipients * 500, job_id=uuid4())
+        # TODO: Resolve phone_numbers from contact_ids in the task
+
+    content = request.content or ""
+    char_count = len(content)
+    sms_parts = 1 if char_count <= 70 else (char_count + 66) // 67
+    estimated_cost = sms_parts * DEFAULT_COST_PER_PART_RIAL * recipients
+
+    # Queue Celery task
+    from src.infrastructure.messaging.tasks import send_bulk_sms_task
+    task = send_bulk_sms_task.delay(
+        phone_numbers=phone_numbers,
+        content=content,
+        tenant_id=str(tenant_id),
+        template_id=str(request.template_id) if request.template_id else None,
+        campaign_id=str(request.campaign_id) if request.campaign_id else None,
+    )
+
+    return BulkSendSMSResponse(
+        total_queued=recipients,
+        estimated_cost=estimated_cost,
+        job_id=UUID(task.id) if hasattr(task, 'id') else uuid4(),
+    )
 
 
 @router.get("/sms/logs", response_model=SMSLogListResponse)
@@ -163,12 +224,46 @@ async def get_sms_log(
 @router.post("/sms/check-status", response_model=SMSDeliveryStatusResponse)
 async def check_sms_delivery_status(
     tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
+    repo: Annotated[SMSLogRepository, Depends(get_sms_log_repository)],
     request: SMSDeliveryStatusRequest,
 ):
-    """Check delivery status for multiple messages."""
+    """Check delivery status for multiple messages via provider and update DB."""
+    from src.infrastructure.connectors.sms import MessagingProviderRegistry
+    from src.core.interfaces.messaging import MessageStatus
+
+    provider = MessagingProviderRegistry.get()
+    status_results = await provider.check_status(request.message_ids)
+
+    statuses: dict[str, str] = {}
+    total_delivered = 0
+    total_failed = 0
+    total_pending = 0
+
+    for sr in status_results:
+        statuses[sr.message_id] = sr.status.value
+        if sr.status == MessageStatus.DELIVERED:
+            total_delivered += 1
+        elif sr.status == MessageStatus.FAILED:
+            total_failed += 1
+        else:
+            total_pending += 1
+
+        # Update DB record
+        sms_log = await repo.get_by_provider_id(sr.message_id)
+        if sms_log:
+            if sr.status == MessageStatus.DELIVERED:
+                sms_log.mark_delivered()
+            elif sr.status == MessageStatus.FAILED:
+                sms_log.mark_failed(sr.error_message or "Delivery failed")
+            elif sr.status == MessageStatus.SENT:
+                sms_log.status = SMSStatus.SENT
+            await repo.update(sms_log)
+
     return SMSDeliveryStatusResponse(
-        statuses={mid: "delivered" for mid in request.message_ids},
-        total_delivered=len(request.message_ids), total_failed=0, total_pending=0,
+        statuses=statuses,
+        total_delivered=total_delivered,
+        total_failed=total_failed,
+        total_pending=total_pending,
     )
 
 
@@ -205,6 +300,103 @@ async def get_sms_stats(
         delivery_rate=delivered / total_sent if total_sent > 0 else 0,
         total_cost=0, by_status=stats, by_template=[],
     )
+
+
+@router.get("/sms/balance", response_model=SMSBalanceResponse)
+async def get_sms_balance(
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
+):
+    """Get remaining SMS credit / balance from the configured provider."""
+    from src.infrastructure.connectors.sms import MessagingProviderRegistry
+
+    provider = MessagingProviderRegistry.get()
+    info = provider.get_info()
+    credit = await provider.get_credit()
+
+    return SMSBalanceResponse(
+        balance=credit,
+        currency="toman" if info.name == "kavenegar" else "unit",
+        provider=info.display_name,
+        is_low=(credit is not None and credit < 50_000),
+    )
+
+
+# ============================================================================
+# Template Variable Substitution & Preview
+# ============================================================================
+
+TEMPLATE_VARIABLES = {
+    "name": "نام مخاطب",
+    "phone": "شماره تلفن",
+    "company": "شرکت",
+    "invoice_number": "شماره فاکتور",
+    "amount": "مبلغ",
+    "date": "تاریخ",
+}
+
+
+@router.post("/templates/{template_id}/preview", response_model=TemplatePreviewResponse)
+async def preview_template(
+    template_id: UUID,
+    repo: Annotated[SMSTemplateRepository, Depends(get_sms_template_repository)],
+    request: TemplatePreviewRequest,
+):
+    """
+    Preview a rendered SMS template with variable substitution.
+
+    Accepts a dict of variables or a contact_id to auto-resolve fields.
+    Returns the rendered text with character count and SMS parts.
+    """
+    t = await repo.get(template_id)
+    if not t:
+        raise HTTPException(status_code=404, detail="Template not found")
+
+    variables = dict(request.variables or {})
+
+    # If contact_id provided, fetch contact details for variable resolution
+    if request.contact_id:
+        from sqlalchemy import select
+        from src.infrastructure.database.models.leads import ContactModel
+
+        session = repo._session
+        tid = repo._tenant_id
+        stmt = select(ContactModel).where(
+            ContactModel.id == request.contact_id,
+            ContactModel.tenant_id == tid,
+        )
+        result = await session.execute(stmt)
+        contact = result.scalar_one_or_none()
+        if contact:
+            variables.setdefault("name", contact.name or "")
+            variables.setdefault("phone", contact.phone_number or "")
+            variables.setdefault("company", getattr(contact, "company", "") or "")
+
+    # Perform substitution
+    rendered = t.content
+    for key, value in variables.items():
+        rendered = rendered.replace(f"{{{key}}}", str(value))
+
+    char_count = len(rendered)
+    sms_parts = 1 if char_count <= 70 else (char_count + 66) // 67
+
+    return TemplatePreviewResponse(
+        rendered_content=rendered,
+        character_count=char_count,
+        sms_parts=sms_parts,
+        variables_used=list(variables.keys()),
+        available_variables=list(TEMPLATE_VARIABLES.keys()),
+    )
+
+
+@router.get("/templates/variables")
+async def list_template_variables():
+    """List supported template variables with descriptions."""
+    return {
+        "variables": [
+            {"key": k, "description": v, "placeholder": f"{{{k}}}"}
+            for k, v in TEMPLATE_VARIABLES.items()
+        ]
+    }
 
 
 # ============================================================================

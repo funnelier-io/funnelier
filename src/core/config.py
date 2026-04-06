@@ -67,6 +67,8 @@ class KavenegarSettings(BaseSettings):
     api_key: str = ""
     sender: str = ""
     enabled: bool = True
+    webhook_secret: str = ""  # Shared secret for webhook validation (?secret=...)
+    callback_url: str = ""    # Public webhook URL for delivery reports
 
 
 class RFMSettings(BaseSettings):
@@ -158,6 +160,10 @@ class Settings(BaseSettings):
 
     # Rate limiting
     rate_limit_requests_per_minute: int = 100
+
+    # Pluggable provider selection
+    messaging_provider: str = "mock"   # "mock" | "kavenegar" | custom
+    erp_provider: str = "mock"         # "mock" | "mongodb" | custom
 
     # Nested settings
     database: DatabaseSettings = Field(default_factory=DatabaseSettings)

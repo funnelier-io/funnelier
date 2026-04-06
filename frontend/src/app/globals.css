@@ -30,10 +30,18 @@
 
 @theme inline {
   --font-shabnam: "Shabnam", system-ui, sans-serif;
+  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+}
+
+.font-shabnam {
+  font-family: "Shabnam", system-ui, sans-serif;
+}
+
+.font-sans {
+  font-family: "Inter", system-ui, -apple-system, sans-serif;
 }
 
 body {
-  font-family: "Shabnam", system-ui, sans-serif;
   background: var(--color-background);
   color: var(--color-foreground);
 }

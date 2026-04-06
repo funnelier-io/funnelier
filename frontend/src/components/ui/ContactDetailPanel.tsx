@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useApi } from "@/lib/hooks";
 import { fmtNum, fmtDate, fmtCurrency } from "@/lib/utils";
 import { STAGE_LABELS, STAGE_COLORS, SEGMENT_LABELS } from "@/lib/constants";
@@ -8,14 +9,6 @@ import type { Contact } from "@/types/leads";
 interface ContactDetailPanelProps {
   contact: Contact;
   onClose: () => void;
-}
-
-function fmtDuration(seconds: number): string {
-  if (!seconds) return "—";
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  if (h > 0) return `${h} ساعت ${m} دقیقه`;
-  return `${m} دقیقه`;
 }
 
 function Badge({ label, color }: { label: string; color: string }) {
@@ -71,6 +64,9 @@ interface TimelineResponse {
 }
 
 export default function ContactDetailPanel({ contact, onClose }: ContactDetailPanelProps) {
+  const t = useTranslations("contactDetail");
+  const tc = useTranslations("common");
+
   const stageLabel = STAGE_LABELS[contact.current_stage] || contact.current_stage;
   const stageColor = STAGE_COLORS[contact.current_stage] || "#6b7280";
   const segmentLabel = contact.rfm_segment
@@ -83,6 +79,14 @@ export default function ContactDetailPanel({ contact, onClose }: ContactDetailPa
   const timeline = useApi<TimelineResponse>(
     `/communications/timeline/${contact.id}?limit=20`
   );
+
+  function fmtDuration(seconds: number): string {
+    if (!seconds) return "—";
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    if (h > 0) return t("hoursMinutes", { h, m });
+    return t("minutes", { m });
+  }
 
   return (
     <>
@@ -98,7 +102,7 @@ export default function ContactDetailPanel({ contact, onClose }: ContactDetailPa
         <div className="sticky top-0 bg-white border-b border-gray-200 px-5 py-4 flex items-center justify-between z-10">
           <div>
             <h2 className="text-base font-bold text-gray-800">
-              {contact.name || "بدون نام"}
+              {contact.name || t("unnamed")}
             </h2>
             <span className="font-mono text-xs text-gray-400" dir="ltr">
               {contact.phone_number}
@@ -125,10 +129,10 @@ export default function ContactDetailPanel({ contact, onClose }: ContactDetailPa
               />
             )}
             {contact.is_blocked && (
-              <Badge label="مسدود" color="bg-red-100 text-red-700" />
+              <Badge label={t("blocked")} color="bg-red-100 text-red-700" />
             )}
             {!contact.is_active && (
-              <Badge label="غیرفعال" color="bg-gray-100 text-gray-500" />
+              <Badge label={t("inactive")} color="bg-gray-100 text-gray-500" />
             )}
           </div>
 
@@ -140,57 +144,57 @@ export default function ContactDetailPanel({ contact, onClose }: ContactDetailPa
             />
             <span className="text-sm font-medium">{stageLabel}</span>
             <span className="text-xs text-gray-400">
-              از {fmtDate(contact.stage_entered_at)}
+              {t("since", { date: fmtDate(contact.stage_entered_at) })}
             </span>
           </div>
 
           {/* Engagement Stats */}
           <div className="bg-gray-50 rounded-lg p-4">
-            <h3 className="text-xs font-semibold text-gray-500 mb-3">📊 آمار تعامل</h3>
+            <h3 className="text-xs font-semibold text-gray-500 mb-3">{t("engagementStats")}</h3>
             <div className="grid grid-cols-2 gap-3">
               <div className="text-center">
                 <div className="text-lg font-bold text-blue-600">{fmtNum(contact.total_calls)}</div>
-                <div className="text-xs text-gray-400">تماس</div>
+                <div className="text-xs text-gray-400">{t("calls")}</div>
               </div>
               <div className="text-center">
                 <div className="text-lg font-bold text-green-600">{fmtNum(contact.total_answered_calls)}</div>
-                <div className="text-xs text-gray-400">پاسخ داده</div>
+                <div className="text-xs text-gray-400">{t("answered")}</div>
               </div>
               <div className="text-center">
                 <div className="text-lg font-bold text-purple-600">{fmtNum(contact.total_sms_sent)}</div>
-                <div className="text-xs text-gray-400">پیامک</div>
+                <div className="text-xs text-gray-400">{t("sms")}</div>
               </div>
               <div className="text-center">
                 <div className="text-lg font-bold text-amber-600">{fmtDuration(contact.total_call_duration)}</div>
-                <div className="text-xs text-gray-400">مدت تماس</div>
+                <div className="text-xs text-gray-400">{t("callDuration")}</div>
               </div>
             </div>
           </div>
 
           {/* Sales Stats */}
           <div className="bg-gray-50 rounded-lg p-4">
-            <h3 className="text-xs font-semibold text-gray-500 mb-3">💰 فروش</h3>
+            <h3 className="text-xs font-semibold text-gray-500 mb-3">{t("salesStats")}</h3>
             <div className="grid grid-cols-2 gap-3">
               <div className="text-center">
                 <div className="text-lg font-bold text-emerald-600">{fmtNum(contact.total_invoices)}</div>
-                <div className="text-xs text-gray-400">فاکتور</div>
+                <div className="text-xs text-gray-400">{t("invoices")}</div>
               </div>
               <div className="text-center">
                 <div className="text-lg font-bold text-green-600">{fmtNum(contact.total_paid_invoices)}</div>
-                <div className="text-xs text-gray-400">پرداختی</div>
+                <div className="text-xs text-gray-400">{t("paid")}</div>
               </div>
               <div className="col-span-2 text-center pt-1">
                 <div className="text-lg font-bold text-amber-600">{fmtCurrency(contact.total_revenue)}</div>
-                <div className="text-xs text-gray-400">درآمد کل</div>
+                <div className="text-xs text-gray-400">{t("totalRevenue")}</div>
               </div>
             </div>
           </div>
 
           {/* Communication Timeline */}
           <div>
-            <h3 className="text-xs font-semibold text-gray-500 mb-3">📅 تاریخچه ارتباطات</h3>
+            <h3 className="text-xs font-semibold text-gray-500 mb-3">{t("communicationHistory")}</h3>
             {timeline.isLoading ? (
-              <div className="text-xs text-gray-400 text-center py-4">در حال بارگذاری...</div>
+              <div className="text-xs text-gray-400 text-center py-4">{tc("loading")}</div>
             ) : timeline.data?.events && timeline.data.events.length > 0 ? (
               <div className="space-y-2 max-h-[300px] overflow-y-auto">
                 {timeline.data.events.map((ev, i) => (
@@ -203,7 +207,7 @@ export default function ContactDetailPanel({ contact, onClose }: ContactDetailPa
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <span className="font-medium text-gray-700">
-                          {ev.type === "call" ? "تماس" : "پیامک"}
+                          {ev.type === "call" ? t("call") : t("smsEvent")}
                         </span>
                         {ev.type === "call" && ev.duration_seconds != null && ev.duration_seconds > 0 && (
                           <span className="text-gray-400" dir="ltr">
@@ -221,7 +225,7 @@ export default function ContactDetailPanel({ contact, onClose }: ContactDetailPa
                         )}
                       </div>
                       {ev.salesperson_name && (
-                        <div className="text-gray-400 mt-0.5">فروشنده: {ev.salesperson_name}</div>
+                        <div className="text-gray-400 mt-0.5">{t("salesperson", { name: ev.salesperson_name })}</div>
                       )}
                       {ev.message && (
                         <div className="text-gray-500 mt-0.5 truncate">{ev.message}</div>
@@ -235,26 +239,26 @@ export default function ContactDetailPanel({ contact, onClose }: ContactDetailPa
               </div>
             ) : (
               <div className="text-xs text-gray-400 text-center py-4">
-                تاریخچه‌ای موجود نیست
+                {t("noHistory")}
               </div>
             )}
           </div>
 
           {/* Details */}
           <div>
-            <h3 className="text-xs font-semibold text-gray-500 mb-2">📋 اطلاعات</h3>
-            <InfoRow label="ایمیل" value={contact.email} />
-            <InfoRow label="دسته‌بندی" value={contact.category_name} />
-            <InfoRow label="منبع" value={contact.source_name} />
-            <InfoRow label="تاریخ ایجاد" value={fmtDate(contact.created_at)} />
-            <InfoRow label="آخرین خرید" value={fmtDate(contact.last_purchase_at)} />
-            <InfoRow label="اولین خرید" value={fmtDate(contact.first_purchase_at)} />
+            <h3 className="text-xs font-semibold text-gray-500 mb-2">{t("info")}</h3>
+            <InfoRow label={t("email")} value={contact.email} />
+            <InfoRow label={t("category")} value={contact.category_name} />
+            <InfoRow label={t("source")} value={contact.source_name} />
+            <InfoRow label={t("createdAt")} value={fmtDate(contact.created_at)} />
+            <InfoRow label={t("lastPurchase")} value={fmtDate(contact.last_purchase_at)} />
+            <InfoRow label={t("firstPurchase")} value={fmtDate(contact.first_purchase_at)} />
           </div>
 
           {/* Tags */}
           {contact.tags && contact.tags.length > 0 && (
             <div>
-              <h3 className="text-xs font-semibold text-gray-500 mb-2">🏷️ برچسب‌ها</h3>
+              <h3 className="text-xs font-semibold text-gray-500 mb-2">{t("tags")}</h3>
               <div className="flex flex-wrap gap-1.5">
                 {contact.tags.map((tag) => (
                   <span
@@ -271,7 +275,7 @@ export default function ContactDetailPanel({ contact, onClose }: ContactDetailPa
           {/* Notes */}
           {contact.notes && (
             <div>
-              <h3 className="text-xs font-semibold text-gray-500 mb-2">📝 یادداشت</h3>
+              <h3 className="text-xs font-semibold text-gray-500 mb-2">{t("notes")}</h3>
               <p className="text-sm text-gray-600 bg-amber-50 rounded-lg p-3">
                 {contact.notes}
               </p>

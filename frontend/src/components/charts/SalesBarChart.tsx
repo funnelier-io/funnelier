@@ -9,6 +9,7 @@ import {
   ResponsiveContainer,
   CartesianGrid,
 } from "recharts";
+import { useTranslations } from "next-intl";
 import { fmtCurrency } from "@/lib/utils";
 
 interface SalesBarChartProps {
@@ -23,13 +24,15 @@ export default function SalesBarChart({
   data,
   height = 220,
 }: SalesBarChartProps) {
+  const t = useTranslations("charts");
+
   if (data.length === 0) {
     return (
       <div
         className="flex items-center justify-center text-gray-400 text-sm"
         style={{ height }}
       >
-        داده‌ای برای نمایش وجود ندارد
+        {t("noDataToDisplay")}
       </div>
     );
   }
@@ -40,7 +43,7 @@ export default function SalesBarChart({
         <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
         <XAxis
           dataKey="label"
-          tick={{ fontSize: 11, fontFamily: "Shabnam" }}
+          tick={{ fontSize: 11 }}
         />
         <YAxis
           tick={{ fontSize: 10 }}
@@ -52,8 +55,7 @@ export default function SalesBarChart({
           }}
         />
         <Tooltip
-          formatter={(value) => [fmtCurrency(value as number), "درآمد"]}
-          contentStyle={{ fontFamily: "Shabnam", direction: "rtl" }}
+          formatter={(value) => [fmtCurrency(value as number), t("revenue")]}
         />
         <Bar dataKey="value" fill="#059669" radius={[4, 4, 0, 0]} />
       </BarChart>

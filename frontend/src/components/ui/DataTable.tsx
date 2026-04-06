@@ -17,7 +17,7 @@ interface DataTableProps<T = any> {
 export default function DataTable<T>({
   columns,
   data,
-  emptyMessage = "داده‌ای یافت نشد",
+  emptyMessage = "—",
   isLoading = false,
   onRowClick,
 }: DataTableProps<T>) {

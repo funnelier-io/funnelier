@@ -41,6 +41,7 @@ celery_app.conf.update(
         "src.infrastructure.messaging.tasks.calculate_*": {"queue": "analytics"},
         "src.infrastructure.messaging.tasks.send_*": {"queue": "notifications"},
         "src.infrastructure.messaging.tasks.sync_*": {"queue": "sync"},
+        "src.infrastructure.messaging.tasks.poll_*": {"queue": "notifications"},
     },
 
     # Default queue
@@ -74,6 +75,18 @@ celery_app.conf.update(
         "daily-report": {
             "task": "src.infrastructure.messaging.tasks.generate_daily_report",
             "schedule": crontab(hour=6, minute=0),
+            "args": [],
+        },
+        # Poll SMS delivery status every 10 minutes (fallback for webhooks)
+        "poll-sms-delivery": {
+            "task": "src.infrastructure.messaging.tasks.poll_sms_delivery_status",
+            "schedule": crontab(minute="*/10"),
+            "args": [],
+        },
+        # Scheduled ERP data-source sync every 15 minutes
+        "erp-data-source-sync": {
+            "task": "src.infrastructure.messaging.tasks.sync_erp_data_sources",
+            "schedule": crontab(minute="*/15"),
             "args": [],
         },
     },

@@ -2,12 +2,17 @@ export interface SMSLog {
   id: string;
   phone_number: string;
   message: string;
+  content?: string;
   template_id: string | null;
   status: string;
   delivery_status: string | null;
+  provider_message_id: string | null;
   sent_at: string;
   delivered_at: string | null;
   provider: string;
+  provider_name?: string;
+  cost: number;
+  sms_parts: number;
 }
 
 export interface SMSStats {
@@ -16,6 +21,28 @@ export interface SMSStats {
   total_failed: number;
   total_queued: number;
   delivery_rate: number;
+  total_cost: number;
+}
+
+export interface SMSBalance {
+  balance: number | null;
+  currency: string;
+  provider: string;
+  is_low: boolean;
+}
+
+export interface TemplateVariable {
+  key: string;
+  description: string;
+  placeholder: string;
+}
+
+export interface TemplatePreviewResponse {
+  rendered_content: string;
+  character_count: number;
+  sms_parts: number;
+  variables_used: string[];
+  available_variables: string[];
 }
 
 export interface CallStats {

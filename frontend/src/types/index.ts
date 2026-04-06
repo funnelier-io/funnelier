@@ -19,8 +19,11 @@ export type {
 export type {
   SMSLog,
   SMSStats,
+  SMSBalance,
   CallStats,
   SMSLogListResponse,
+  TemplateVariable,
+  TemplatePreviewResponse,
 } from "./communications";
 export type {
   Salesperson,
@@ -51,3 +54,28 @@ export type {
   PaymentListResponse,
   SalesStats,
 } from "./sales";
+export type {
+  ConnectorInfo,
+  DataSource,
+  DataSourceListResponse,
+  SyncLog,
+  SyncHistoryResponse,
+  SyncStatus,
+  SyncResult,
+  ConnectionTestResult,
+  DedupStrategy,
+  DataSourceCreateRequest,
+  DataSourceUpdateRequest,
+  ScheduleUpdateRequest,
+} from "./erp-sync";
+export type {
+  ExportFormat,
+  ReportType,
+  ScheduleFrequency,
+  ExportRequest,
+  ScheduledReportRequest,
+  CustomReportRequest,
+  ReportColumnInfo,
+  ScheduledReportResponse,
+  ScheduledReportListResponse,
+} from "./export";

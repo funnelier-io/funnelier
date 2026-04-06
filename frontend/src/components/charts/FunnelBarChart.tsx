@@ -9,6 +9,7 @@ import {
   ResponsiveContainer,
   Cell,
 } from "recharts";
+import { useTranslations } from "next-intl";
 import { STAGE_LABELS, STAGE_COLORS } from "@/lib/constants";
 import { fmtNum } from "@/lib/utils";
 import type { StageCount } from "@/types/analytics";
@@ -18,6 +19,8 @@ interface FunnelBarChartProps {
 }
 
 export default function FunnelBarChart({ data }: FunnelBarChartProps) {
+  const t = useTranslations("charts");
+
   const chartData = data.map((s) => ({
     name: STAGE_LABELS[s.stage] || s.stage,
     value: s.count,
@@ -33,12 +36,10 @@ export default function FunnelBarChart({ data }: FunnelBarChartProps) {
           type="category"
           dataKey="name"
           width={100}
-          tick={{ fontSize: 12, fontFamily: "Shabnam" }}
+          tick={{ fontSize: 12 }}
         />
         <Tooltip
-          formatter={(value) => [fmtNum(value as number), "تعداد"]}
-          labelStyle={{ fontFamily: "Shabnam" }}
-          contentStyle={{ fontFamily: "Shabnam", direction: "rtl" }}
+          formatter={(value) => [fmtNum(value as number), t("count")]}
         />
         <Bar dataKey="value" radius={[0, 6, 6, 0]}>
           {chartData.map((entry) => (

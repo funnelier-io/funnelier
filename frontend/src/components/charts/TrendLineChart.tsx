@@ -10,6 +10,7 @@ import {
   CartesianGrid,
   Legend,
 } from "recharts";
+import { useTranslations } from "next-intl";
 import { fmtNum, fmtDate } from "@/lib/utils";
 import type { DailySnapshot } from "@/types/analytics";
 
@@ -18,19 +19,21 @@ interface TrendLineChartProps {
 }
 
 export default function TrendLineChart({ data }: TrendLineChartProps) {
+  const t = useTranslations("charts");
+
   if (data.length === 0) {
     return (
       <div className="flex items-center justify-center h-[300px] text-gray-400 text-sm">
-        داده‌ای برای نمایش وجود ندارد
+        {t("noDataToDisplay")}
       </div>
     );
   }
 
   const chartData = data.map((s) => ({
     date: fmtDate(s.date),
-    سرنخ_جدید: s.new_leads,
-    تبدیل_جدید: s.new_conversions,
-    نرخ_تبدیل: +(s.conversion_rate * 100).toFixed(1),
+    new_leads: s.new_leads,
+    new_conversions: s.new_conversions,
+    conversion_rate: +(s.conversion_rate * 100).toFixed(1),
   }));
 
   return (
@@ -39,37 +42,53 @@ export default function TrendLineChart({ data }: TrendLineChartProps) {
         <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
         <XAxis
           dataKey="date"
-          tick={{ fontSize: 11, fontFamily: "Shabnam" }}
+          tick={{ fontSize: 11 }}
         />
         <YAxis tick={{ fontSize: 11 }} />
         <Tooltip
-          contentStyle={{ fontFamily: "Shabnam", direction: "rtl" }}
-          formatter={(value, name) => [fmtNum(value as number), String(name).replace(/_/g, " ")]}
+          formatter={(value, name) => {
+            const labels: Record<string, string> = {
+              new_leads: t("newLeads"),
+              new_conversions: t("newConversions"),
+              conversion_rate: t("conversionRatePercent"),
+            };
+            return [fmtNum(value as number), labels[name as string] || String(name)];
+          }}
         />
-        <Legend wrapperStyle={{ fontFamily: "Shabnam", fontSize: 12 }} />
+        <Legend
+          formatter={(value) => {
+            const labels: Record<string, string> = {
+              new_leads: t("newLeads"),
+              new_conversions: t("newConversions"),
+              conversion_rate: t("conversionRatePercent"),
+            };
+            return labels[value] || value;
+          }}
+          wrapperStyle={{ fontSize: 12 }}
+        />
         <Line
           type="monotone"
-          dataKey="سرنخ_جدید"
+          dataKey="new_leads"
           stroke="#3b82f6"
           strokeWidth={2}
           dot={{ r: 3 }}
-          name="سرنخ جدید"
+          name="new_leads"
         />
         <Line
           type="monotone"
-          dataKey="تبدیل_جدید"
+          dataKey="new_conversions"
           stroke="#22c55e"
           strokeWidth={2}
           dot={{ r: 3 }}
-          name="تبدیل جدید"
+          name="new_conversions"
         />
         <Line
           type="monotone"
-          dataKey="نرخ_تبدیل"
+          dataKey="conversion_rate"
           stroke="#f59e0b"
           strokeWidth={2}
           dot={{ r: 3 }}
-          name="نرخ تبدیل (%)"
+          name="conversion_rate"
         />
       </LineChart>
     </ResponsiveContainer>

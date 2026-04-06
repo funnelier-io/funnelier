@@ -1076,6 +1076,178 @@ def sync_mongodb_invoices(self, tenant_id: str, connection_string: str,
 
 
 # ═════════════════════════════════════════════════════════════════════════════
+# SMS Sending & Delivery Tracking Tasks
+# ═════════════════════════════════════════════════════════════════════════════
+
+@celery_app.task(bind=True, name="src.infrastructure.messaging.tasks.send_bulk_sms_task")
+def send_bulk_sms_task(
+    self,
+    phone_numbers: list[str],
+    content: str,
+    tenant_id: str,
+    template_id: str | None = None,
+    campaign_id: str | None = None,
+):
+    """
+    Send SMS to multiple recipients via the configured provider.
+    Creates SMSLog records and sends in batches.
+    """
+    tenant_uuid = UUID(tenant_id)
+
+    _notify_ws("bulk_sms_started", {
+        "task_id": self.request.id,
+        "total_recipients": len(phone_numbers),
+        "tenant_id": tenant_id,
+    })
+
+    async def _do_send():
+        from src.infrastructure.connectors.sms import MessagingProviderRegistry
+        from src.core.interfaces.messaging import MessageStatus
+        from src.modules.communications.infrastructure.repositories import SMSLogRepository
+        from src.modules.communications.domain.entities import SMSLog as SMSLogEntity
+        from src.core.domain import SMSDirection, SMSStatus
+
+        provider = MessagingProviderRegistry.get()
+        session_factory = _get_session_factory()
+
+        sent_count = 0
+        failed_count = 0
+        total_cost = 0
+
+        # Send in batches via provider
+        results = await provider.send_bulk(phone_numbers, content)
+
+        async with session_factory() as session:
+            repo = SMSLogRepository(session, tenant_uuid)
+
+            for result in results:
+                try:
+                    status = SMSStatus.SENT if result.status == MessageStatus.SENT else (
+                        SMSStatus.DELIVERED if result.status == MessageStatus.DELIVERED else SMSStatus.FAILED
+                    )
+
+                    sms_log = SMSLogEntity(
+                        id=uuid4(),
+                        tenant_id=tenant_uuid,
+                        phone_number=result.phone_number,
+                        direction=SMSDirection.OUTBOUND,
+                        content=content,
+                        template_id=UUID(template_id) if template_id else None,
+                        status=status,
+                        provider_message_id=result.message_id,
+                        sent_at=result.sent_at,
+                        campaign_id=UUID(campaign_id) if campaign_id else None,
+                        provider_name=provider.get_info().name,
+                        cost=int(result.cost or 0),
+                        failure_reason=result.error_message,
+                    )
+
+                    if status == SMSStatus.FAILED:
+                        sms_log.failed_at = datetime.utcnow()
+
+                    await repo.add(sms_log)
+
+                    if status in (SMSStatus.SENT, SMSStatus.DELIVERED):
+                        sent_count += 1
+                        total_cost += int(result.cost or 0)
+                    else:
+                        failed_count += 1
+
+                except Exception as exc:
+                    logger.error("Failed to save SMS log for %s: %s", result.phone_number, exc)
+                    failed_count += 1
+
+            await session.commit()
+
+        return {
+            "total_recipients": len(phone_numbers),
+            "sent": sent_count,
+            "failed": failed_count,
+            "total_cost": total_cost,
+        }
+
+    result = _run_async(_do_send())
+
+    _notify_ws("bulk_sms_completed", {
+        "task_id": self.request.id,
+        "result": result,
+    })
+
+    return result
+
+
+@celery_app.task(name="src.infrastructure.messaging.tasks.poll_sms_delivery_status")
+def poll_sms_delivery_status():
+    """
+    Poll delivery status for recently-sent SMS messages.
+    Fallback for when webhooks are delayed or missed.
+    Queries all SMS logs with status='sent' from the last 48 hours.
+    """
+    async def _poll():
+        from sqlalchemy import select, and_
+        from src.infrastructure.connectors.sms import MessagingProviderRegistry
+        from src.core.interfaces.messaging import MessageStatus
+        from src.infrastructure.database.models.communications import SMSLogModel
+        from src.modules.communications.infrastructure.repositories import SMSLogRepository
+
+        session_factory = _get_session_factory()
+        provider = MessagingProviderRegistry.get()
+
+        cutoff = datetime.utcnow() - timedelta(hours=48)
+        updated = 0
+        checked = 0
+
+        async with session_factory() as session:
+            # Find SMS logs with status 'sent' sent within last 48h
+            stmt = (
+                select(SMSLogModel)
+                .where(and_(
+                    SMSLogModel.status == "sent",
+                    SMSLogModel.sent_at >= cutoff,
+                    SMSLogModel.message_id.isnot(None),
+                ))
+                .limit(500)
+            )
+            result = await session.execute(stmt)
+            logs = result.scalars().all()
+
+            if not logs:
+                return {"checked": 0, "updated": 0}
+
+            # Batch check status via provider
+            message_ids = [log.message_id for log in logs if log.message_id]
+            if not message_ids:
+                return {"checked": 0, "updated": 0}
+
+            status_results = await provider.check_status(message_ids)
+            status_map = {sr.message_id: sr for sr in status_results}
+
+            for log in logs:
+                if log.message_id not in status_map:
+                    continue
+                checked += 1
+                sr = status_map[log.message_id]
+
+                if sr.status == MessageStatus.DELIVERED and log.status != "delivered":
+                    log.status = "delivered"
+                    log.delivered_at = sr.delivered_at or datetime.utcnow()
+                    updated += 1
+                elif sr.status == MessageStatus.FAILED and log.status != "failed":
+                    log.status = "failed"
+                    log.failed_at = datetime.utcnow()
+                    log.status_message = sr.error_message
+                    updated += 1
+
+            await session.commit()
+
+        return {"checked": checked, "updated": updated}
+
+    result = _run_async(_poll())
+    logger.info("SMS delivery poll: checked=%s, updated=%s", result.get("checked"), result.get("updated"))
+    return result
+
+
+# ═════════════════════════════════════════════════════════════════════════════
 # Helper Functions (duplicated from ETL routes for task independence)
 # ═════════════════════════════════════════════════════════════════════════════
 
@@ -1200,3 +1372,68 @@ def _parse_call_datetime(date_val, time_val) -> datetime:
     return parsed_date or now
 
 
+# ─── Scheduled ERP Data-Source Sync ──────────────────────────────────────────
+
+@celery_app.task(name="src.infrastructure.messaging.tasks.sync_erp_data_sources")
+def sync_erp_data_sources():
+    """
+    Periodic task: iterate all active data sources whose sync_interval
+    has elapsed and trigger a sync for each one.
+    """
+    logger.info("Running scheduled ERP data-source sync check")
+
+    async def _run():
+        from sqlalchemy import select
+        from datetime import datetime, timezone, timedelta
+        from src.infrastructure.database.models.tenants import DataSourceConnectionModel
+        from src.modules.sales.infrastructure.erp_sync_service import ERPSyncService
+        from src.modules.sales.api.erp_routes import _get_connector_for_source
+
+        factory = _get_session_factory()
+        async with factory() as session:
+            stmt = select(DataSourceConnectionModel).where(
+                DataSourceConnectionModel.sync_enabled == True,
+                DataSourceConnectionModel.is_active == True,
+            )
+            result = await session.execute(stmt)
+            sources = result.scalars().all()
+
+            now = datetime.now(timezone.utc)
+            synced = 0
+
+            for ds in sources:
+                interval = timedelta(minutes=ds.sync_interval_minutes)
+                if ds.last_sync_at and (now - ds.last_sync_at) < interval:
+                    continue  # Not due yet
+
+                logger.info(
+                    "Scheduled sync for source %s (type=%s, tenant=%s)",
+                    ds.name, ds.source_type, ds.tenant_id,
+                )
+                connector = _get_connector_for_source(ds)
+                svc = ERPSyncService(
+                    connector=connector,
+                    session=session,
+                    tenant_id=ds.tenant_id,
+                    source_system=ds.source_type,
+                    data_source_id=ds.id,
+                )
+
+                since = ds.last_sync_at  # incremental from last sync
+                try:
+                    sync_result = await svc.full_sync(
+                        since=since, triggered_by="scheduled",
+                    )
+                    ds.last_sync_at = now
+                    ds.last_sync_status = "success" if sync_result.success else "failed"
+                    ds.last_sync_records = sync_result.records_synced
+                    synced += 1
+                except Exception as exc:
+                    logger.error("Scheduled sync failed for %s: %s", ds.name, exc)
+                    ds.last_sync_status = "failed"
+                    ds.last_sync_at = now
+
+            await session.commit()
+            logger.info("Scheduled ERP sync complete: %d sources synced", synced)
+
+    _run_async(_run())

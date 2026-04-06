@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useTranslations, useLocale } from "next-intl";
+import { useRouter } from "@/i18n/navigation";
 import { apiGet } from "@/lib/api-client";
 import { STAGE_LABELS, SEGMENT_LABELS, NAV_ITEMS } from "@/lib/constants";
 import { toPersianNum } from "@/lib/utils";
@@ -21,12 +22,12 @@ interface SearchResponse {
   results: SearchResultItem[];
 }
 
-const TYPE_CONFIG: Record<string, { icon: string; label: string; color: string }> = {
-  page: { icon: "📄", label: "صفحه", color: "bg-gray-100 text-gray-600" },
-  contact: { icon: "👤", label: "مخاطب", color: "bg-blue-50 text-blue-700" },
-  invoice: { icon: "🧾", label: "فاکتور", color: "bg-green-50 text-green-700" },
-  campaign: { icon: "📣", label: "کمپین", color: "bg-purple-50 text-purple-700" },
-  product: { icon: "📦", label: "محصول", color: "bg-amber-50 text-amber-700" },
+const TYPE_CONFIG: Record<string, { icon: string; labelKey: string; color: string }> = {
+  page: { icon: "📄", labelKey: "pages", color: "bg-gray-100 text-gray-600" },
+  contact: { icon: "👤", labelKey: "contacts", color: "bg-blue-50 text-blue-700" },
+  invoice: { icon: "🧾", labelKey: "invoices", color: "bg-green-50 text-green-700" },
+  campaign: { icon: "📣", labelKey: "campaigns", color: "bg-purple-50 text-purple-700" },
+  product: { icon: "📦", labelKey: "products", color: "bg-amber-50 text-amber-700" },
 };
 
 export default function CommandPalette() {
@@ -39,6 +40,10 @@ export default function CommandPalette() {
   const listRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const t = useTranslations("search");
+  const tNav = useTranslations("nav");
+  const locale = useLocale();
+  const isRtl = locale === "fa";
 
   // ⌘+K / Ctrl+K to toggle
   useEffect(() => {
@@ -67,19 +72,21 @@ export default function CommandPalette() {
   const getPageResults = useCallback((q: string): SearchResultItem[] => {
     const items = q
       ? NAV_ITEMS.filter(
-          (item) =>
-            item.label.includes(q) ||
-            item.href.toLowerCase().includes(q.toLowerCase())
+          (item) => {
+            const label = tNav(item.labelKey);
+            return label.toLowerCase().includes(q.toLowerCase()) ||
+              item.href.toLowerCase().includes(q.toLowerCase());
+          }
         )
       : NAV_ITEMS;
     return items.map((item) => ({
       id: "page-" + item.href,
       type: "page" as const,
-      title: item.icon + " " + item.label,
+      title: item.icon + " " + tNav(item.labelKey),
       subtitle: null,
       url: item.href,
     }));
-  }, []);
+  }, [tNav]);
 
   // Search API with debounce
   useEffect(() => {
@@ -169,7 +176,7 @@ export default function CommandPalette() {
         <div
           className="w-full max-w-lg bg-white rounded-xl shadow-2xl border border-gray-200 overflow-hidden pointer-events-auto"
           role="dialog"
-          aria-label="جستجوی سریع"
+          aria-label={t("placeholder")}
         >
           {/* Search input */}
           <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-100">
@@ -192,9 +199,9 @@ export default function CommandPalette() {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="جستجو در مخاطبین، فاکتورها، کمپین‌ها..."
+              placeholder={t("placeholder")}
               className="flex-1 text-sm outline-none placeholder-gray-400 bg-transparent"
-              dir="rtl"
+              dir={isRtl ? "rtl" : "ltr"}
             />
             {isSearching && (
               <div className="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
@@ -208,7 +215,7 @@ export default function CommandPalette() {
           <div ref={listRef} className="max-h-[50vh] overflow-y-auto py-2">
             {results.length === 0 && query.length >= 2 && !isSearching && (
               <div className="px-4 py-8 text-center text-sm text-gray-400">
-                نتیجه‌ای یافت نشد
+                {t("noResults")}
               </div>
             )}
 
@@ -220,7 +227,7 @@ export default function CommandPalette() {
               return (
                 <div key={type}>
                   <div className="px-4 py-1.5 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
-                    {cfg.label}
+                    {t(cfg.labelKey)}
                   </div>
                   {items.map((item) => {
                     const idx = globalIdx++;
@@ -282,23 +289,23 @@ export default function CommandPalette() {
                 <kbd className="px-1 py-0.5 bg-white border border-gray-200 rounded text-[10px] font-mono">
                   ↑↓
                 </kbd>{" "}
-                ناوبری
+                {t("navigate")}
               </span>
               <span>
                 <kbd className="px-1 py-0.5 bg-white border border-gray-200 rounded text-[10px] font-mono">
                   ↵
                 </kbd>{" "}
-                انتخاب
+                {t("select")}
               </span>
               <span>
                 <kbd className="px-1 py-0.5 bg-white border border-gray-200 rounded text-[10px] font-mono">
                   Esc
                 </kbd>{" "}
-                بستن
+                {t("closeHint")}
               </span>
             </div>
             {results.length > 0 && (
-              <span>{toPersianNum(results.length)} نتیجه</span>
+              <span>{isRtl ? toPersianNum(results.length) : results.length}</span>
             )}
           </div>
         </div>

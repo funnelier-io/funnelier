@@ -86,6 +86,7 @@ class SMSLogModel(Base, UUIDMixin, TimestampMixin):
 
     # Cost tracking
     cost: Mapped[int] = mapped_column(Integer, default=0)
+    sms_parts: Mapped[int] = mapped_column(Integer, default=1)
 
     # Campaign reference
     campaign_id: Mapped[UUID | None] = mapped_column(UUID(as_uuid=True))

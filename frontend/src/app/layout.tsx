@@ -2,8 +2,8 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "فانلیر — تحلیل فانل بازاریابی",
-  description: "پلتفرم تحلیل فانل بازاریابی و بهینه‌سازی نرخ تبدیل",
+  title: "Funnelier — Marketing Funnel Analytics",
+  description: "Marketing funnel analytics and conversion rate optimization platform",
   manifest: "/manifest.json",
 };
 
@@ -18,9 +18,5 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  return (
-    <html lang="fa" dir="rtl">
-      <body className="antialiased">{children}</body>
-    </html>
-  );
+  return children;
 }

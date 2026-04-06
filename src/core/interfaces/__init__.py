@@ -20,6 +20,22 @@ from .connectors import (
     IFileConnector,
     TransformationRule,
 )
+from .erp import (
+    ConnectorInfo,
+    ERPCustomer,
+    ERPInvoice,
+    ERPPayment,
+    IERPConnector,
+    SyncDirection,
+    SyncResult,
+)
+from .messaging import (
+    IMessagingProvider,
+    MessageStatus,
+    ProviderInfo,
+    SendResult,
+    StatusResult,
+)
 from .repository import (
     IAggregateRepository,
     ICacheService,
@@ -47,6 +63,20 @@ __all__ = [
     "IDataTransformer",
     "IDataLoader",
     "IETLPipeline",
+    # Messaging interfaces
+    "IMessagingProvider",
+    "MessageStatus",
+    "ProviderInfo",
+    "SendResult",
+    "StatusResult",
+    # ERP/CRM interfaces
+    "IERPConnector",
+    "ConnectorInfo",
+    "ERPInvoice",
+    "ERPPayment",
+    "ERPCustomer",
+    "SyncDirection",
+    "SyncResult",
     # Config classes
     "DataSourceConfig",
     "FileSourceConfig",

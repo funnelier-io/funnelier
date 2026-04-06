@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 
 interface ErrorAlertProps {
@@ -16,6 +17,7 @@ export default function ErrorAlert({
   onRetry,
   className,
 }: ErrorAlertProps) {
+  const tc = useTranslations("common");
   if (!message) return null;
 
   return (
@@ -32,7 +34,7 @@ export default function ErrorAlert({
           onClick={onRetry}
           className="shrink-0 text-xs px-2.5 py-1 bg-red-100 rounded hover:bg-red-200 transition-colors"
         >
-          تلاش مجدد
+          {tc("retry")}
         </button>
       )}
     </div>

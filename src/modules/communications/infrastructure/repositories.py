@@ -53,6 +53,8 @@ class SMSLogRepository(SqlAlchemyRepository[SMSLogModel, SMSLog], ISMSLogReposit
         )
 
     def _to_model(self, entity: SMSLog) -> SMSLogModel:
+        char_count = len(entity.content or "")
+        sms_parts = 1 if char_count <= 70 else (char_count + 66) // 67
         return SMSLogModel(
             id=entity.id,
             tenant_id=entity.tenant_id,
@@ -69,6 +71,7 @@ class SMSLogRepository(SqlAlchemyRepository[SMSLogModel, SMSLog], ISMSLogReposit
             campaign_id=entity.campaign_id,
             provider=entity.provider_name or "kavenegar",
             cost=entity.cost,
+            sms_parts=sms_parts,
             metadata_=entity.metadata,
         )
 

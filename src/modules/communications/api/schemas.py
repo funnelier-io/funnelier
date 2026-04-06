@@ -96,6 +96,29 @@ class SMSDeliveryStatusResponse(BaseModel):
     total_pending: int
 
 
+class SMSBalanceResponse(BaseModel):
+    """Schema for SMS provider balance/credit response."""
+    balance: float | None
+    currency: str  # "toman", "unit", etc.
+    provider: str
+    is_low: bool = False
+
+
+class TemplatePreviewRequest(BaseModel):
+    """Schema for template preview with variable substitution."""
+    variables: dict[str, str] = Field(default_factory=dict)
+    contact_id: UUID | None = None
+
+
+class TemplatePreviewResponse(BaseModel):
+    """Schema for rendered template preview."""
+    rendered_content: str
+    character_count: int
+    sms_parts: int
+    variables_used: list[str] = Field(default_factory=list)
+    available_variables: list[str] = Field(default_factory=list)
+
+
 # ============================================================================
 # SMS Template Schemas
 # ============================================================================

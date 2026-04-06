@@ -1,10 +1,11 @@
 "use client";
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { useTranslations, useLocale } from "next-intl";
+import { Link, usePathname, useRouter } from "@/i18n/navigation";
 import { NAV_ITEMS } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/auth-store";
+import type { Locale } from "@/i18n/config";
 
 interface SidebarProps {
   isOpen?: boolean;
@@ -13,7 +14,18 @@ interface SidebarProps {
 
 export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   const pathname = usePathname();
+  const locale = useLocale() as Locale;
+  const router = useRouter();
   const { user, logout } = useAuthStore();
+  const t = useTranslations("nav");
+  const tApp = useTranslations("app");
+
+  const isRtl = locale === "fa";
+
+  function switchLocale() {
+    const next = locale === "fa" ? "en" : "fa";
+    router.replace(pathname, { locale: next });
+  }
 
   return (
     <>
@@ -27,9 +39,14 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
 
       <aside
         className={cn(
-          "fixed right-0 top-0 w-60 h-full bg-white shadow-lg z-30 flex flex-col transition-transform duration-200",
+          "fixed top-0 w-60 h-full bg-white shadow-lg z-30 flex flex-col transition-transform duration-200",
+          isRtl ? "right-0" : "left-0",
           // On mobile: off-screen by default, slide in when open
-          isOpen ? "translate-x-0" : "translate-x-full",
+          isOpen
+            ? "translate-x-0"
+            : isRtl
+              ? "translate-x-full"
+              : "-translate-x-full",
           // On desktop: always visible
           "lg:translate-x-0"
         )}
@@ -37,8 +54,8 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         {/* Logo */}
         <div className="p-4 border-b border-gray-200 flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-bold text-blue-600">🎯 فانلیر</h1>
-            <p className="text-xs text-gray-400">تحلیل فانل بازاریابی</p>
+            <h1 className="text-xl font-bold text-blue-600">🎯 {tApp("name")}</h1>
+            <p className="text-xs text-gray-400">{tApp("tagline")}</p>
           </div>
           {/* Mobile close button */}
           <button
@@ -66,7 +83,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
-            <span className="flex-1 text-right">جستجو...</span>
+            <span className="flex-1 text-start">{t("search")}</span>
             <kbd className="text-[10px] text-gray-300 bg-white border border-gray-200 rounded px-1.5 py-0.5 font-mono">⌘K</kbd>
           </button>
 
@@ -88,14 +105,27 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                         : "hover:bg-gray-100 text-gray-700"
                     )}
                   >
-                    <span className="ml-2">{item.icon}</span>
-                    {item.label}
+                    <span className={isRtl ? "ml-2" : "mr-2"}>{item.icon}</span>
+                    {t(item.labelKey)}
                   </Link>
                 </li>
               );
             })}
           </ul>
         </nav>
+
+        {/* Language Switcher */}
+        <div className="px-3 py-2 border-t border-gray-200">
+          <button
+            onClick={switchLocale}
+            className="w-full flex items-center justify-center gap-2 px-3 py-1.5 text-xs text-gray-500 bg-gray-50 rounded-md hover:bg-gray-100 transition-colors"
+          >
+            <span className="text-sm">🌐</span>
+            <span className={locale === "fa" ? "font-medium" : ""}>فا</span>
+            <span className="text-gray-300">|</span>
+            <span className={locale === "en" ? "font-medium" : ""}>EN</span>
+          </button>
+        </div>
 
         {/* User info */}
         <div className="p-3 border-t border-gray-200 text-xs text-gray-400">
@@ -106,12 +136,12 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                 onClick={logout}
                 className="text-red-400 hover:text-red-600 transition-colors"
               >
-                خروج
+                {t("logout")}
               </button>
             </div>
           ) : (
             <Link href="/login" className="text-blue-500 hover:text-blue-700">
-              ورود
+              {t("login")}
             </Link>
           )}
         </div>
