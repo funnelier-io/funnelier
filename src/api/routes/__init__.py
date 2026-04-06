@@ -16,6 +16,7 @@ from src.modules.campaigns.api import router as campaigns_router
 from src.modules.team.api import router as team_router
 from src.modules.tenants.api import router as tenants_router
 from src.modules.export.api import router as export_router
+from src.modules.notifications.api import router as notifications_router
 
 __all__ = [
     "auth_router",
@@ -29,5 +30,5 @@ __all__ = [
     "team_router",
     "tenants_router",
     "export_router",
+    "notifications_router",
 ]
-

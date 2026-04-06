@@ -170,6 +170,7 @@ def create_app() -> FastAPI:
                 "tasks": "/api/v1/tasks/{task_id}",
                 "webhooks": "/api/v1/webhooks",
                 "export": "/api/v1/export",
+                "notifications": "/api/v1/notifications",
                 "websocket": "/ws",
             },
         }
@@ -187,6 +188,7 @@ def create_app() -> FastAPI:
         team_router,
         tenants_router,
         export_router,
+        notifications_router,
     )
     from src.api.search import router as search_router
     from src.api.websocket import ws_router
@@ -251,6 +253,10 @@ def create_app() -> FastAPI:
     app.include_router(
         export_router, prefix="/api/v1",
         tags=["Export & Reporting"], dependencies=[Depends(require_auth)],
+    )
+    app.include_router(
+        notifications_router, prefix="/api/v1",
+        tags=["Notifications"], dependencies=[Depends(require_auth)],
     )
 
     return app

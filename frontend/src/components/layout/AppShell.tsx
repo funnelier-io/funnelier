@@ -5,6 +5,7 @@ import { useTranslations, useLocale } from "next-intl";
 import { useRouter, usePathname } from "@/i18n/navigation";
 import { useAuthStore } from "@/stores/auth-store";
 import Sidebar from "./Sidebar";
+import NotificationBell from "./NotificationBell";
 
 interface AppShellProps {
   children: React.ReactNode;
@@ -75,19 +76,22 @@ export default function AppShell({ children }: AppShellProps) {
           </svg>
         </button>
         <h1 className="text-base font-bold text-blue-600">🎯 {tApp("name")}</h1>
-        <button
-          onClick={() => {
-            window.dispatchEvent(
-              new KeyboardEvent("keydown", { key: "k", metaKey: true })
-            );
-          }}
-          className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400"
-          aria-label={tNav("search")}
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-          </svg>
-        </button>
+        <div className="flex items-center gap-1">
+          <NotificationBell />
+          <button
+            onClick={() => {
+              window.dispatchEvent(
+                new KeyboardEvent("keydown", { key: "k", metaKey: true })
+              );
+            }}
+            className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400"
+            aria-label={tNav("search")}
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+          </button>
+        </div>
       </div>
 
       <main className={cn(

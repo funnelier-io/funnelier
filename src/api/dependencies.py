@@ -211,3 +211,20 @@ async def get_campaign_recipient_repository(
     return CampaignRecipientRepository(session, tenant_id)
 
 
+# ──────────────────── Notification Repositories ─────────────────────
+
+
+async def get_notification_repository(
+    session: AsyncSession = Depends(get_db_session),
+    tenant_id: UUID = Depends(get_current_tenant_id),
+):
+    from src.modules.notifications.infrastructure.repositories import NotificationRepository
+    return NotificationRepository(session, tenant_id)
+
+
+async def get_notification_preference_repository(
+    session: AsyncSession = Depends(get_db_session),
+    tenant_id: UUID = Depends(get_current_tenant_id),
+):
+    from src.modules.notifications.infrastructure.repositories import NotificationPreferenceRepository
+    return NotificationPreferenceRepository(session, tenant_id)

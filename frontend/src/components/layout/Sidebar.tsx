@@ -5,6 +5,7 @@ import { Link, usePathname, useRouter } from "@/i18n/navigation";
 import { NAV_ITEMS } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/auth-store";
+import NotificationBell from "./NotificationBell";
 import type { Locale } from "@/i18n/config";
 
 interface SidebarProps {
@@ -57,13 +58,18 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
             <h1 className="text-xl font-bold text-blue-600">🎯 {tApp("name")}</h1>
             <p className="text-xs text-gray-400">{tApp("tagline")}</p>
           </div>
-          {/* Mobile close button */}
-          <button
-            onClick={onClose}
-            className="lg:hidden w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-400"
-          >
-            ✕
-          </button>
+          <div className="flex items-center gap-1">
+            <div className="hidden lg:block">
+              <NotificationBell />
+            </div>
+            {/* Mobile close button */}
+            <button
+              onClick={onClose}
+              className="lg:hidden w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-400"
+            >
+              ✕
+            </button>
+          </div>
         </div>
 
         {/* Navigation */}

@@ -4,6 +4,7 @@ import { useCallback } from "react";
 import { useTranslations } from "next-intl";
 import { useWebSocket, WSEvent } from "@/lib/use-websocket";
 import { showToast } from "@/components/ui/ToastContainer";
+import { useNotificationStore } from "@/stores/notification-store";
 
 const EVENT_TYPE_MAP: Record<string, { key: string; type: "success" | "info" | "warning" | "error" }> = {
   import_started: { key: "importStarted", type: "info" },
@@ -22,8 +23,28 @@ const EVENT_TYPE_MAP: Record<string, { key: string; type: "success" | "info" | "
  */
 export default function WSEventListener() {
   const t = useTranslations("wsEvents");
+  const addNotification = useNotificationStore((s) => s.addNotification);
+  const fetchUnreadCount = useNotificationStore((s) => s.fetchUnreadCount);
 
   const handleWSEvent = useCallback((event: WSEvent) => {
+    // Handle notification_new event from backend
+    if (event.type === "notification_new") {
+      const p = event.payload || {};
+      addNotification({
+        id: String(p.notification_id || ""),
+        tenant_id: String(p.tenant_id || ""),
+        user_id: String(p.user_id || ""),
+        type: String(p.type || "system") as import("@/types/notifications").NotificationType,
+        severity: String(p.severity || "info") as import("@/types/notifications").NotificationSeverity,
+        title: String(p.title || ""),
+        body: p.body ? String(p.body) : null,
+        is_read: false,
+        created_at: new Date().toISOString(),
+      });
+      // Also refresh the count from server
+      fetchUnreadCount();
+    }
+
     const cfg = EVENT_TYPE_MAP[event.type];
     if (cfg) {
       const payload = event.payload || {};

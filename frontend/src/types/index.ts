@@ -79,3 +79,14 @@ export type {
   ScheduledReportResponse,
   ScheduledReportListResponse,
 } from "./export";
+export type {
+  Notification,
+  NotificationType,
+  NotificationSeverity,
+  NotificationListResponse,
+  UnreadCountResponse,
+  MarkReadResponse,
+  NotificationPreference,
+  NotificationPreferenceUpdate,
+  CreateNotificationRequest,
+} from "./notifications";

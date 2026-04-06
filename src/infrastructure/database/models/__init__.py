@@ -39,6 +39,10 @@ from .campaigns import (
 from .sync import (
     SyncLogModel,
 )
+from .notifications import (
+    NotificationModel,
+    NotificationPreferenceModel,
+)
 
 __all__ = [
     # Tenants
@@ -71,5 +75,7 @@ __all__ = [
     "CampaignRecipientModel",
     # Sync
     "SyncLogModel",
+    # Notifications
+    "NotificationModel",
+    "NotificationPreferenceModel",
 ]
-
