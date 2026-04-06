@@ -641,11 +641,14 @@ Basic dashboard with:
 - Pending user approval/rejection flow
 - Frontend page with search, role/status filters, modals for create/edit/reset
 
-### Phase 23: Audit Trail & Activity Log
+### Phase 23: Audit Trail & Activity Log ✅
 - Track all user actions (CRUD operations, imports, exports, logins)
 - Filterable activity log page with user, action type, timestamp
 - Data change history (before/after snapshots)
-- Compliance-ready audit export
+- User activity summary and action breakdown stats
+- Audit log API (list with filters, stats endpoint)
+- record_audit() helper for instrumenting any endpoint
+- Frontend Activity Log page with search, filters, expandable change diffs
 
 ### Phase 24: E2E Browser Tests
 - Playwright or Cypress test suite for critical user flows

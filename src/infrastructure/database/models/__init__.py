@@ -43,6 +43,9 @@ from .notifications import (
     NotificationModel,
     NotificationPreferenceModel,
 )
+from .audit import (
+    AuditLogModel,
+)
 
 __all__ = [
     # Tenants
@@ -78,4 +81,6 @@ __all__ = [
     # Notifications
     "NotificationModel",
     "NotificationPreferenceModel",
+    # Audit
+    "AuditLogModel",
 ]

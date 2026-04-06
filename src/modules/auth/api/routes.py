@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -146,6 +146,7 @@ async def require_manager(
 @router.post("/login", response_model=TokenResponse)
 async def login(
     request: LoginRequest,
+    req: Request,
     session: AsyncSession = Depends(get_db_session),
 ):
     """Authenticate user and return JWT tokens."""
@@ -170,6 +171,19 @@ async def login(
 
     await repo.update_last_login(user.id)
     tokens = create_token_pair(user.id, user.tenant_id, user.role.value)
+
+    # Record audit
+    try:
+        from src.modules.audit.api.routes import record_audit
+        await record_audit(
+            session, user, "login", "user",
+            f"User {user.username} logged in",
+            resource_id=str(user.id),
+            ip_address=req.client.host if req.client else None,
+            user_agent=req.headers.get("user-agent", "")[:500],
+        )
+    except Exception:
+        pass  # Don't fail login if audit fails
 
     return TokenResponse(
         access_token=tokens.access_token,
