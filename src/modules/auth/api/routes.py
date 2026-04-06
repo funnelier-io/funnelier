@@ -26,9 +26,11 @@ from ..domain.entities import User, UserRole
 from ..infrastructure.repositories import UserRepository
 from .schemas import (
     ChangePasswordRequest,
+    CreateUserRequest,
     LoginRequest,
     RefreshRequest,
     RegisterRequest,
+    ResetPasswordRequest,
     TokenResponse,
     UpdateUserRequest,
     UpdateUserRoleRequest,
@@ -415,4 +417,97 @@ async def activate_user(
     await repo.activate_user(user_id)
     target.is_active = True
     return _user_to_response(target)
+
+
+@router.post("/users", response_model=UserResponse, status_code=201)
+async def create_user(
+    request: CreateUserRequest,
+    admin: Annotated[User, Depends(require_admin)],
+    session: AsyncSession = Depends(get_db_session),
+):
+    """Create a new user (admin only). User is pre-approved."""
+    repo = UserRepository(session, admin.tenant_id)
+
+    if await repo.username_exists(request.username):
+        raise HTTPException(status_code=409, detail="Username already exists")
+    if await repo.email_exists(request.email):
+        raise HTTPException(status_code=409, detail="Email already registered")
+
+    new_role = UserRole(request.role)
+    # Only super_admin can create super_admin users
+    if new_role == UserRole.SUPER_ADMIN and not admin.has_permission(UserRole.SUPER_ADMIN):
+        raise HTTPException(status_code=403, detail="Only super admins can create super_admin users")
+
+    user = User(
+        tenant_id=admin.tenant_id,
+        email=request.email,
+        username=request.username,
+        hashed_password=hash_password(request.password),
+        full_name=request.full_name or request.username,
+        role=new_role,
+        is_active=True,
+        is_approved=True,  # Admin-created users are pre-approved
+    )
+    user = await repo.add(user)
+    return _user_to_response(user)
+
+
+@router.put("/users/{user_id}", response_model=UserResponse)
+async def update_user(
+    user_id: UUID,
+    request: UpdateUserRequest,
+    admin: Annotated[User, Depends(require_admin)],
+    session: AsyncSession = Depends(get_db_session),
+):
+    """Update a user's profile (admin only)."""
+    repo = UserRepository(session, admin.tenant_id)
+    target = await repo.get(user_id)
+    if not target:
+        raise HTTPException(status_code=404, detail="User not found")
+    if target.tenant_id != admin.tenant_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    # Check email uniqueness if changing email
+    if request.email and request.email != target.email:
+        if await repo.email_exists(request.email, exclude_id=user_id):
+            raise HTTPException(status_code=409, detail="Email already registered")
+
+    await repo.update_user_profile(
+        user_id,
+        full_name=request.full_name,
+        email=request.email,
+    )
+
+    # Handle is_active change
+    if request.is_active is not None and request.is_active != target.is_active:
+        if user_id == admin.id and not request.is_active:
+            raise HTTPException(status_code=400, detail="Cannot deactivate yourself")
+        if request.is_active:
+            await repo.activate_user(user_id)
+        else:
+            await repo.deactivate_user(user_id)
+
+    # Re-fetch updated user
+    updated = await repo.get(user_id)
+    return _user_to_response(updated)
+
+
+@router.post("/users/{user_id}/reset-password", status_code=200)
+async def reset_user_password(
+    user_id: UUID,
+    request: ResetPasswordRequest,
+    admin: Annotated[User, Depends(require_admin)],
+    session: AsyncSession = Depends(get_db_session),
+):
+    """Reset a user's password (admin only)."""
+    repo = UserRepository(session, admin.tenant_id)
+    target = await repo.get(user_id)
+    if not target:
+        raise HTTPException(status_code=404, detail="User not found")
+    if target.tenant_id != admin.tenant_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    await repo.update_password(user_id, hash_password(request.new_password))
+    return {"message": "Password reset successfully"}
+
 

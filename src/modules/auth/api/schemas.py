@@ -58,3 +58,20 @@ class UpdateUserRequest(BaseModel):
     email: str | None = None
     is_active: bool | None = None
 
+
+class CreateUserRequest(BaseModel):
+    """Admin creates a new user (pre-approved)."""
+    email: str
+    username: str
+    password: str = Field(min_length=8)
+    full_name: str = ""
+    role: str = Field(
+        default="viewer",
+        pattern="^(super_admin|tenant_admin|manager|salesperson|viewer)$",
+    )
+
+
+class ResetPasswordRequest(BaseModel):
+    """Admin resets a user's password."""
+    new_password: str = Field(min_length=8)
+

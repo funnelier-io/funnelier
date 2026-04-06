@@ -198,3 +198,24 @@ class UserRepository(SqlAlchemyRepository[TenantUserModel, User]):
             stmt = stmt.where(TenantUserModel.is_active == True)
         result = await self._session.execute(stmt)
         return [self._to_entity(m) for m in result.scalars().all()]
+
+    async def update_user_profile(
+        self,
+        user_id: UUID,
+        full_name: str | None = None,
+        email: str | None = None,
+    ) -> None:
+        """Update user profile fields (name, email)."""
+        values: dict[str, Any] = {}
+        if full_name is not None:
+            values["name"] = full_name
+        if email is not None:
+            values["email"] = email
+        if values:
+            stmt = (
+                update(TenantUserModel)
+                .where(TenantUserModel.id == user_id)
+                .values(**values)
+            )
+            await self._session.execute(stmt)
+

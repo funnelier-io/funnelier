@@ -621,23 +621,25 @@ Basic dashboard with:
 ## Next Steps (Roadmap)
 
 
-### Phase 20: Export & Reporting
+### Phase 20: Export & Reporting ✅
 - PDF report generation (funnel summary, team performance, RFM breakdown)
 - Excel/CSV export for contacts, invoices, call logs, SMS logs
 - Scheduled email reports (daily/weekly digest)
 - Custom report builder with date range and filter selection
 
-### Phase 21: Notification Center
+### Phase 21: Notification Center ✅
 - In-app notification panel (bell icon with badge count)
 - Read/unread state, mark all as read
 - Notification preferences per user (email, SMS, in-app)
 - Push notification support (Web Push API)
 
-### Phase 22: User Management UI
+### Phase 22: User Management UI ✅
 - Admin panel for user CRUD (create, edit, deactivate users)
 - Role assignment interface (super_admin, tenant_admin, manager, salesperson, viewer)
 - User activity log and last login tracking
-- Invitation flow with email verification
+- Password reset by admin
+- Pending user approval/rejection flow
+- Frontend page with search, role/status filters, modals for create/edit/reset
 
 ### Phase 23: Audit Trail & Activity Log
 - Track all user actions (CRUD operations, imports, exports, logins)
