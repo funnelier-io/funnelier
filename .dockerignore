@@ -1,0 +1,62 @@
+# Funnelier .dockerignore
+# Keep Docker build context small & fast
+
+# Version control
+.git
+.gitignore
+
+# CI/CD
+.github
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.egg-info
+.eggs
+dist
+build
+.mypy_cache
+.ruff_cache
+.pytest_cache
+htmlcov
+.coverage
+coverage.xml
+
+# Virtual environments
+.venv
+venv
+env
+
+# Node / Frontend (backend image doesn't need this)
+frontend/node_modules
+frontend/.next
+frontend/test-results
+frontend/playwright-report
+
+# Data files (not needed in image)
+leads-numbers/
+call logs/
+scripts/
+tests/
+
+# Docker
+docker/
+k8s/
+
+# Docs
+docs/
+*.md
+
+# Misc
+.env
+.env.*
+*.log
+/tmp
+

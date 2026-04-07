@@ -1,0 +1,38 @@
+# Funnelier Database Migration Job
+# Run this job to apply migrations before deployment
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: funnelier-migrate
+  labels:
+    app.kubernetes.io/name: funnelier-migrate
+    app.kubernetes.io/component: migration
+    app.kubernetes.io/part-of: funnelier
+  annotations:
+    # Run before deployments
+    helm.sh/hook: pre-upgrade,pre-install
+    helm.sh/hook-weight: "-5"
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 600
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: migrate
+          image: ghcr.io/OWNER/funnelier/api:latest
+          command: ["alembic", "upgrade", "head"]
+          envFrom:
+            - configMapRef:
+                name: funnelier-config
+            - secretRef:
+                name: funnelier-secrets
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+

@@ -80,12 +80,18 @@ celerybeat-schedule
 # Environments
 .env
 .env.local
+.env.production
+.env.staging
+docker/.env.production
 .venv
 env/
 venv/
 ENV/
 env.bak/
 venv.bak/
+
+# Kubernetes secrets (never commit real secrets)
+k8s/overlays/*/secrets.yaml
 
 # Spyder project settings
 .spyderproject

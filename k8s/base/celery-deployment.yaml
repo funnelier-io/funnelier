@@ -1,0 +1,107 @@
+# Funnelier Celery Worker Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: funnelier-celery-worker
+  labels:
+    app.kubernetes.io/name: funnelier-celery-worker
+    app.kubernetes.io/component: worker
+    app.kubernetes.io/part-of: funnelier
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: funnelier-celery-worker
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: funnelier-celery-worker
+        app.kubernetes.io/component: worker
+        app.kubernetes.io/part-of: funnelier
+    spec:
+      serviceAccountName: funnelier-sa
+      terminationGracePeriodSeconds: 120  # allow tasks to finish
+      containers:
+        - name: celery-worker
+          image: ghcr.io/OWNER/funnelier/api:latest
+          command:
+            - celery
+            - -A
+            - src.infrastructure.messaging.celery_app
+            - worker
+            - --loglevel=info
+            - --concurrency=4
+            - -Q
+            - imports,analytics,notifications,sync,celery
+          envFrom:
+            - configMapRef:
+                name: funnelier-config
+            - secretRef:
+                name: funnelier-secrets
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+          livenessProbe:
+            exec:
+              command:
+                - celery
+                - -A
+                - src.infrastructure.messaging.celery_app
+                - inspect
+                - ping
+                - --timeout=10
+            initialDelaySeconds: 30
+            periodSeconds: 60
+            timeoutSeconds: 15
+
+---
+# Funnelier Celery Beat Deployment (single replica)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: funnelier-celery-beat
+  labels:
+    app.kubernetes.io/name: funnelier-celery-beat
+    app.kubernetes.io/component: scheduler
+    app.kubernetes.io/part-of: funnelier
+spec:
+  replicas: 1  # MUST be exactly 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: funnelier-celery-beat
+  strategy:
+    type: Recreate  # Never run two beat instances
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: funnelier-celery-beat
+        app.kubernetes.io/component: scheduler
+        app.kubernetes.io/part-of: funnelier
+    spec:
+      serviceAccountName: funnelier-sa
+      containers:
+        - name: celery-beat
+          image: ghcr.io/OWNER/funnelier/api:latest
+          command:
+            - celery
+            - -A
+            - src.infrastructure.messaging.celery_app
+            - beat
+            - --loglevel=info
+          envFrom:
+            - configMapRef:
+                name: funnelier-config
+            - secretRef:
+                name: funnelier-secrets
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+

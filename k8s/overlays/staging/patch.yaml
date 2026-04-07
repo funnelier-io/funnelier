@@ -1,0 +1,115 @@
+# Staging overlay — reduced resources, staging URLs
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: funnelier-config
+data:
+  ENV: "staging"
+  DEBUG: "true"
+  LOG_LEVEL: "DEBUG"
+  CORS_ORIGINS: '["https://staging.funnelier.ir","http://localhost:3000"]'
+  MESSAGING_PROVIDER: "mock"
+  ERP_PROVIDER: "mock"
+
+---
+# Staging API — 1 replica, smaller resources
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: funnelier-api
+spec:
+  replicas: 1
+  template:
+    spec:
+      containers:
+        - name: api
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+
+---
+# Staging Frontend — 1 replica
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: funnelier-frontend
+spec:
+  replicas: 1
+  template:
+    spec:
+      containers:
+        - name: frontend
+          env:
+            - name: NEXT_PUBLIC_API_URL
+              value: "https://api.staging.funnelier.ir"
+
+---
+# Staging Celery Worker — 1 replica
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: funnelier-celery-worker
+spec:
+  replicas: 1
+
+---
+# Staging Ingress
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: funnelier-ingress
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-staging
+spec:
+  tls:
+    - hosts:
+        - staging.funnelier.ir
+        - api.staging.funnelier.ir
+      secretName: funnelier-staging-tls
+  rules:
+    - host: api.staging.funnelier.ir
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: funnelier-api
+                port:
+                  number: 8000
+    - host: staging.funnelier.ir
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: funnelier-frontend
+                port:
+                  number: 3000
+
+---
+# Staging HPA — disabled (1 replica each)
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: funnelier-api-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: funnelier-api
+  minReplicas: 1
+  maxReplicas: 2
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 80
+

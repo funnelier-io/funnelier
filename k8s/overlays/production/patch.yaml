@@ -1,0 +1,109 @@
+# Production overlay — full resources, production URLs, strict security
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: funnelier-config
+data:
+  ENV: "production"
+  DEBUG: "false"
+  LOG_LEVEL: "WARNING"
+  CORS_ORIGINS: '["https://funnelier.ir","https://www.funnelier.ir"]'
+  RATE_LIMIT_REQUESTS_PER_MINUTE: "300"
+  MESSAGING_PROVIDER: "kavenegar"
+  ERP_PROVIDER: "mongodb"
+
+---
+# Production API — 3 replicas with PDB
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: funnelier-api
+spec:
+  replicas: 3
+  template:
+    spec:
+      containers:
+        - name: api
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: "2"
+              memory: 2Gi
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: funnelier-api
+
+---
+# Production PDB for API
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: funnelier-api-pdb
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: funnelier-api
+
+---
+# Production PDB for Frontend
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: funnelier-frontend-pdb
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: funnelier-frontend
+
+---
+# Production Celery Worker — 2 replicas
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: funnelier-celery-worker
+spec:
+  replicas: 2
+  template:
+    spec:
+      containers:
+        - name: celery-worker
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: "2"
+              memory: 2Gi
+
+---
+# Production Network Policy — restrict ingress
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: funnelier-network-policy
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/part-of: funnelier
+  policyTypes:
+    - Ingress
+  ingress:
+    # Allow traffic from ingress controller
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+    # Allow internal traffic within the namespace
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/part-of: funnelier
+

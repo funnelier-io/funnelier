@@ -1,0 +1,78 @@
+# Funnelier Frontend Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: funnelier-frontend
+  labels:
+    app.kubernetes.io/name: funnelier-frontend
+    app.kubernetes.io/component: frontend
+    app.kubernetes.io/part-of: funnelier
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: funnelier-frontend
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: funnelier-frontend
+        app.kubernetes.io/component: frontend
+        app.kubernetes.io/part-of: funnelier
+    spec:
+      containers:
+        - name: frontend
+          image: ghcr.io/OWNER/funnelier/frontend:latest
+          ports:
+            - name: http
+              containerPort: 3000
+              protocol: TCP
+          env:
+            - name: NEXT_PUBLIC_API_URL
+              value: "https://api.funnelier.ir"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+
+---
+# Funnelier Frontend Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: funnelier-frontend
+  labels:
+    app.kubernetes.io/name: funnelier-frontend
+    app.kubernetes.io/component: frontend
+    app.kubernetes.io/part-of: funnelier
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 3000
+      targetPort: http
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: funnelier-frontend
+

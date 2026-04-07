@@ -259,6 +259,12 @@ Basic dashboard with:
 17. ✅ **Phase 17** - Full i18n (Persian/English), next-intl, locale routing, pluggable SMS & ERP interfaces
 18. ✅ **Phase 18** - Live SMS integration (Kavenegar), webhook delivery tracking, balance display, template variables
 19. ✅ **Phase 19** - ERP Sync Dashboard, scheduled sync jobs, Odoo connector, dedup strategies
+20. ✅ **Phase 20** - Export & Reporting (PDF, Excel/CSV export, scheduled reports)
+21. ✅ **Phase 21** - Notification Center (in-app bell, read/unread, preferences)
+22. ✅ **Phase 22** - User Management UI (CRUD, role assignment, password reset)
+23. ✅ **Phase 23** - Audit Trail & Activity Log (tracking, filtering, change diffs)
+24. ✅ **Phase 24** - E2E Browser Tests (Playwright, 26 tests across 5 specs)
+25. ✅ **Phase 25** - CI/CD Pipeline & Production Deployment (GitHub Actions, Kubernetes, HPA, probes)
 
 ## Phase 6 Details: Background Tasks & Real-time
 
@@ -659,14 +665,72 @@ Basic dashboard with:
 - i18n tests: language switching, RTL direction, English rendering
 - Screenshot on failure, video recording for debugging
 
-### Phase 25: CI/CD Pipeline & Production Deployment
-- GitHub Actions workflow (lint, test, build, deploy)
-- Docker image registry (GitHub Container Registry or ECR)
-- Kubernetes manifests (Deployment, Service, Ingress, ConfigMap, Secrets)
-- Database migrations in CI pipeline
-- Staging → Production promotion workflow
-- Health check and readiness probes
-- Horizontal Pod Autoscaler for API and Celery workers
+### Phase 25: CI/CD Pipeline & Production Deployment ✅
+- GitHub Actions CI workflow (`.github/workflows/ci.yml`):
+  - Backend lint (ruff check + format), Frontend lint (eslint + tsc)
+  - Backend unit tests with coverage
+  - Backend integration tests with PostgreSQL + Redis services
+  - Frontend build verification
+  - Playwright E2E tests with full backend/frontend stack
+  - Security scan (pip-audit, trufflehog)
+  - Docker image build & push to GHCR (on master/release branches)
+  - Concurrency groups to cancel stale runs
+- GitHub Actions CD workflow (`.github/workflows/cd.yml`):
+  - Automatic staging deploy on push to master
+  - Production deploy on version tags (v*)
+  - Manual dispatch with environment selection
+  - K8s manifest application with image tag updates
+  - Database migration job before rollout
+  - Post-deployment health check + smoke tests
+  - Rollout status monitoring with 300s timeout
+- Kubernetes manifests (`k8s/`):
+  - Base manifests: Namespace, ConfigMap, Secrets, ServiceAccount
+  - API Deployment (2 replicas, rolling update, startup/liveness/readiness probes)
+  - Frontend Deployment (2 replicas, rolling update)
+  - Celery Worker Deployment (2 replicas, 4 concurrency, multi-queue)
+  - Celery Beat Deployment (1 replica, Recreate strategy)
+  - Ingress with nginx annotations, WebSocket support, rate limiting, cert-manager TLS
+  - HPA for API (2-10 pods, CPU 70% / Memory 80%), Workers (1-5), Frontend (2-6)
+  - Migration Job (pre-upgrade hook)
+  - Staging overlay: 1 replica, smaller resources, mock providers, staging TLS
+  - Production overlay: 3 replicas, full resources, PDB, NetworkPolicy, topology spread
+- Enhanced health probes:
+  - `GET /health` — fast liveness check
+  - `GET /health/ready` — readiness check verifying PostgreSQL + Redis connectivity
+- Production Docker Compose (`docker/docker-compose.prod.yml`):
+  - Resource limits for all services
+  - Health checks with start_period
+  - Redis with maxmemory + AOF persistence
+  - Ports bound to 127.0.0.1 (nginx proxy expected)
+  - Optional nginx reverse proxy profile
+- Multi-stage backend Dockerfile (builder → runner):
+  - Build deps in venv, copy to slim runner image
+  - curl for health checks, non-root user
+  - uvicorn with uvloop + httptools for production perf
+  - 4 workers, no access log
+- `.dockerignore` for minimal build context
+- `.pre-commit-config.yaml` with ruff, mypy, trailing whitespace, secret detection
+- `.env.production.example` template with all config keys
+- Expanded Makefile: 25+ commands covering dev, test, lint, docker, production, k8s, deploy
+
+### Phase 26: Advanced Analytics & Predictive Models (Planned)
+- Customer churn prediction model (scikit-learn or similar)
+- Lead scoring ML pipeline
+- Campaign ROI forecasting
+- A/B test statistical significance calculator
+- Cohort analysis with retention curves
+
+### Phase 27: API Rate Limiting & Caching (Planned)
+- Redis-backed API rate limiting per tenant
+- Response caching for expensive analytics queries
+- Cache invalidation on data changes
+- Request throttling for import endpoints
+
+### Phase 28: Multi-tenant Billing & Usage Metering (Planned)
+- Usage tracking per tenant (contacts, SMS, API calls)
+- Plan-based feature gating
+- Billing integration (Stripe or local payment gateway)
+- Usage dashboard for tenant admins
 
 ## Tech Stack
 
@@ -678,5 +742,9 @@ Basic dashboard with:
 - **Real-time**: WebSocket + Redis pub/sub
 - **VoIP**: Asterisk integration
 - **SMS**: Kavenegar API
-- **Deployment**: Docker Compose (backend + frontend + Celery + PostgreSQL + Redis + MongoDB)
+- **CI/CD**: GitHub Actions (lint → test → build → deploy)
+- **Container Registry**: GitHub Container Registry (GHCR)
+- **Orchestration**: Kubernetes with HPA, PDB, NetworkPolicy
+- **Deployment**: Docker Compose (dev/single-server), Kubernetes (production)
+- **Quality**: pre-commit hooks, ruff, mypy, Playwright E2E
 

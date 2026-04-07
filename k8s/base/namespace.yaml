@@ -1,0 +1,9 @@
+# Funnelier Kubernetes Namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: funnelier
+  labels:
+    app.kubernetes.io/part-of: funnelier
+    app.kubernetes.io/managed-by: github-actions
+

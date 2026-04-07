@@ -1,0 +1,168 @@
+# Production Docker Compose
+# Use for single-server deployments (not Kubernetes)
+# Run: docker compose -f docker/docker-compose.prod.yml up -d
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: funnelier-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-funnelier}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-funnelier}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-funnelier}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 2G
+
+  # Redis
+  redis:
+    image: redis:7-alpine
+    container_name: funnelier-redis
+    restart: unless-stopped
+    command: redis-server --maxmemory 512mb --maxmemory-policy allkeys-lru --appendonly yes
+    volumes:
+      - redis_data:/data
+    ports:
+      - "127.0.0.1:6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 1G
+
+  # Backend API
+  api:
+    image: ${REGISTRY:-ghcr.io}/${IMAGE_NAME:-funnelier}/api:${TAG:-latest}
+    container_name: funnelier-api
+    restart: unless-stopped
+    env_file: .env.production
+    environment:
+      - ENV=production
+      - DEBUG=false
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-funnelier}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-funnelier}
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/1
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 2G
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 5
+
+  # Celery Worker
+  celery-worker:
+    image: ${REGISTRY:-ghcr.io}/${IMAGE_NAME:-funnelier}/api:${TAG:-latest}
+    container_name: funnelier-celery-worker
+    restart: unless-stopped
+    env_file: .env.production
+    environment:
+      - ENV=production
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-funnelier}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-funnelier}
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/1
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: >
+      celery -A src.infrastructure.messaging.celery_app worker
+        --loglevel=info
+        --concurrency=4
+        -Q imports,analytics,notifications,sync,celery
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 2G
+
+  # Celery Beat (Scheduler)
+  celery-beat:
+    image: ${REGISTRY:-ghcr.io}/${IMAGE_NAME:-funnelier}/api:${TAG:-latest}
+    container_name: funnelier-celery-beat
+    restart: unless-stopped
+    env_file: .env.production
+    environment:
+      - ENV=production
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-funnelier}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-funnelier}
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/1
+    depends_on:
+      - celery-worker
+    command: >
+      celery -A src.infrastructure.messaging.celery_app beat
+        --loglevel=info
+
+  # Frontend (Next.js)
+  frontend:
+    image: ${REGISTRY:-ghcr.io}/${IMAGE_NAME:-funnelier}/frontend:${TAG:-latest}
+    container_name: funnelier-frontend
+    restart: unless-stopped
+    environment:
+      - NEXT_PUBLIC_API_URL=${API_URL:-https://api.funnelier.ir}
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      api:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 512M
+
+  # Nginx Reverse Proxy (optional — for single-server SSL termination)
+  nginx:
+    image: nginx:alpine
+    container_name: funnelier-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/certs:/etc/nginx/certs:ro
+    depends_on:
+      - api
+      - frontend
+    profiles:
+      - with-nginx
+
+volumes:
+  postgres_data:
+  redis_data:
+

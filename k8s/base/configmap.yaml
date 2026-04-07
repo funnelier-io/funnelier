@@ -1,0 +1,40 @@
+# Funnelier ConfigMap — non-secret configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: funnelier-config
+  labels:
+    app.kubernetes.io/part-of: funnelier
+data:
+  ENV: "production"
+  DEBUG: "false"
+  LOG_LEVEL: "INFO"
+  LOG_FORMAT: "json"
+  APP_NAME: "Funnelier"
+  APP_VERSION: "0.1.0"
+  HOST: "0.0.0.0"
+  PORT: "8000"
+  CORS_ORIGINS: '["https://funnelier.ir","https://www.funnelier.ir","https://staging.funnelier.ir"]'
+  RATE_LIMIT_REQUESTS_PER_MINUTE: "200"
+  # Funnel config
+  FUNNEL_MIN_CALL_DURATION_SECONDS: "90"
+  # RFM config
+  RFM_RECENCY_SCORE_5: "3"
+  RFM_RECENCY_SCORE_4: "7"
+  RFM_RECENCY_SCORE_3: "14"
+  RFM_RECENCY_SCORE_2: "30"
+  RFM_FREQUENCY_SCORE_5: "10"
+  RFM_FREQUENCY_SCORE_4: "5"
+  RFM_FREQUENCY_SCORE_3: "3"
+  RFM_FREQUENCY_SCORE_2: "2"
+  RFM_MONETARY_SCORE_5: "1000000000"
+  RFM_MONETARY_SCORE_4: "500000000"
+  RFM_MONETARY_SCORE_3: "100000000"
+  RFM_MONETARY_SCORE_2: "50000000"
+  # Upload config
+  UPLOAD_MAX_SIZE_MB: "50"
+  UPLOAD_TEMP_DIRECTORY: "/tmp/funnelier/uploads"
+  # Provider selection
+  MESSAGING_PROVIDER: "kavenegar"
+  ERP_PROVIDER: "mongodb"
+

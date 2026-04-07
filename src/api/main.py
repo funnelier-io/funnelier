@@ -138,7 +138,7 @@ def create_app() -> FastAPI:
             },
         )
 
-    # Health check endpoint
+    # Health check endpoint (liveness probe)
     @app.get("/health")
     async def health_check() -> dict[str, Any]:
         return {
@@ -146,6 +146,45 @@ def create_app() -> FastAPI:
             "version": settings.app_version,
             "environment": settings.env,
         }
+
+    # Readiness probe — checks DB and Redis connectivity
+    @app.get("/health/ready")
+    async def readiness_check() -> JSONResponse:
+        checks: dict[str, Any] = {}
+        healthy = True
+
+        # Check database
+        try:
+            from src.infrastructure.database.session import get_session_factory
+            factory = get_session_factory()
+            async with factory() as session:
+                from sqlalchemy import text
+                await session.execute(text("SELECT 1"))
+            checks["database"] = "ok"
+        except Exception as e:
+            checks["database"] = f"error: {e}"
+            healthy = False
+
+        # Check Redis
+        try:
+            import redis.asyncio as aioredis
+            r = aioredis.from_url(settings.redis.url, decode_responses=True)
+            await r.ping()
+            await r.aclose()
+            checks["redis"] = "ok"
+        except Exception as e:
+            checks["redis"] = f"error: {e}"
+            healthy = False
+
+        status_code = 200 if healthy else 503
+        return JSONResponse(
+            status_code=status_code,
+            content={
+                "status": "ready" if healthy else "not_ready",
+                "version": settings.app_version,
+                "checks": checks,
+            },
+        )
 
     # API info endpoint
     @app.get("/api/v1")
