@@ -22,8 +22,14 @@ Domain: building materials industry (Iran market). Persian-first UI with English
 
 ## Shared Dev Infrastructure
 
-This project uses a **shared dev infrastructure** managed at `/Users/univers/projects/infra/`.  
-See the [Infra ONBOARDING guide](/Users/univers/projects/infra/ONBOARDING.md) for full details.
+> **⚠️ SHARED RESOURCE — DO NOT MODIFY WITHOUT COORDINATION.**
+> This project uses a **shared dev infrastructure** at `/Users/univers/projects/infra/`.
+> **15+ other projects** depend on the same PostgreSQL, Redis, MongoDB, Kafka, RabbitMQ, and Traefik instances.
+> Never modify files under `/Users/univers/projects/infra/` (e.g. `docker-compose.yml`, `postgres/init.sql`,
+> `mongo/init.js`, `traefik/routes/*.yml`) without explicit user approval — a `docker compose down -v`
+> **destroys ALL projects' data**.
+
+See the [Infra ONBOARDING guide](/Users/univers/projects/infra/ONBOARDING.md) for the full shared infra reference.
 
 ### Starting Infrastructure
 
@@ -32,14 +38,29 @@ cd /Users/univers/projects/infra
 DOCKER_HOST="unix://${HOME}/.docker/run/docker.sock" docker compose up -d
 ```
 
-### Service Ports (shared infra)
+### Funnelier's Infrastructure Connections
 
-| Service | Host Port | Project Usage |
+| Service | Host Port | Funnelier Connection |
 |---|---|---|
 | PostgreSQL | `5435` | `DATABASE_URL=postgresql+asyncpg://funnelier:funnelier@localhost:5435/funnelier` |
 | Redis | `6381` | `REDIS_URL=redis://localhost:6381/0` (cache/rate-limit), `/1` (Celery broker), `/2` (Celery results) |
 | MongoDB | `27017` | `MONGODB_URL=mongodb://mongo:mongo@localhost:27017/funnelier_tenant` |
-| Traefik | `80` | `http://funnelier.localhost` (frontend), `http://api.funnelier.localhost` (backend) |
+| Traefik | `80` | `http://funnelier.localhost` → `:3003`, `http://api.funnelier.localhost` → `:8000` |
+
+### Shared Infra — Key Files (read-only for agents)
+
+| File | Purpose |
+|---|---|
+| `/Users/univers/projects/infra/docker-compose.yml` | Defines all shared containers |
+| `/Users/univers/projects/infra/postgres/init.sql` | DB/user creation for all projects |
+| `/Users/univers/projects/infra/mongo/init.js` | MongoDB user/db init for all projects |
+| `/Users/univers/projects/infra/traefik/routes/funnelier.yml` | Funnelier's Traefik routing rules |
+
+### Co-located Projects (same infra)
+
+Other projects sharing this infrastructure include: taxeller, hupars, commerce, zima, kambotcha,
+infrastatic, flowforge, righthand, mountain-breeze, conquer-eurasia, and others.
+See the full table in the [ONBOARDING guide](/Users/univers/projects/infra/ONBOARDING.md#currently-registered-projects).
 
 ### Traefik Routes
 
@@ -99,12 +120,16 @@ curl -s -X POST http://localhost:8000/api/v1/auth/login \
 src/
 ├── api/              # FastAPI app, routes, middleware, WebSocket
 │   ├── main.py       # Application factory & lifespan
-│   ├── middleware/    # Rate limiting, caching, usage enforcement
+│   ├── metrics.py    # Prometheus metrics endpoint & middleware
+│   ├── middleware/    # Rate limiting, caching, usage enforcement, logging
+│   │   ├── request_logging.py  # Structured request/response logging
+│   │   └── ...
 │   ├── dependencies.py
 │   └── routes.py     # Router aggregation
 ├── core/             # Config, domain base classes, cache utils
 │   ├── config.py     # Pydantic settings (all env vars)
 │   ├── cache.py      # Redis cache helpers
+│   ├── logging.py    # Structured logging setup (structlog)
 │   └── domain.py     # Base Entity, ValueObject
 ├── infrastructure/
 │   ├── database/     # SQLAlchemy models, session, migrations
@@ -160,7 +185,7 @@ frontend/
 ## Testing
 
 ```bash
-# Run all unit tests (249 currently passing)
+# Run all unit tests (265 currently passing)
 python -m pytest tests/unit/ -q
 
 # Run a specific test file
@@ -185,6 +210,7 @@ cd frontend && npx playwright test
 | `GET /api/v1/tenants/me/usage/detailed` | Usage metrics |
 | `GET /api/v1/tenants/me/billing/plans` | Available plans |
 | `DELETE /api/v1/cache/invalidate` | Clear response cache |
+| `GET /metrics` | Prometheus text metrics (no auth) |
 | `GET /health` | Liveness probe |
 | `GET /health/ready` | Readiness probe (checks DB+Redis) |
 
@@ -192,7 +218,7 @@ cd frontend && npx playwright test
 
 - **CORS**: origins configured in `.env` `CORS_ORIGINS` — includes `funnelier.localhost` and `api.funnelier.localhost`
 - **Redis databases**: `0` = cache/rate-limit, `1` = Celery broker, `2` = Celery results
-- **Middleware order** (outermost first): CORS → RateLimitMiddleware → ResponseCacheMiddleware → UsageEnforcementMiddleware
+- **Middleware order** (outermost first): CORS → RequestLoggingMiddleware → RateLimitMiddleware → ResponseCacheMiddleware → UsageEnforcementMiddleware → MetricsMiddleware
 - **JWT**: tokens contain `sub` (user_id), `tenant_id`, `role` — decoded via `decode_access_token()`
 - **Git commits**: use `git commit -F /tmp/funnelier_commit.txt` to avoid shell quoting issues with multi-line messages
 - **Frontend port**: `3003` (not default 3000, to avoid conflicts with other projects)

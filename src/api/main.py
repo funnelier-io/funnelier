@@ -78,6 +78,13 @@ async def lifespan(app: FastAPI):
     """Application lifespan events."""
     global _redis_listener_task
 
+    # Structured logging (must be first)
+    from src.core.logging import setup_logging
+    setup_logging(
+        log_level=settings.log_level,
+        json_format=settings.log_format == "json",
+    )
+
     # Startup
     await init_database()
     await _seed_default_tenant()
@@ -131,7 +138,7 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
-    # CORS middleware
+    # CORS middleware (outermost — must always run)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
@@ -140,7 +147,11 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    # Per-tenant API rate limiting (added after CORS so CORS headers are always present)
+    # Request logging with request_id and tenant context propagation
+    from src.api.middleware.request_logging import RequestLoggingMiddleware
+    app.add_middleware(RequestLoggingMiddleware)
+
+    # Per-tenant API rate limiting
     from src.api.middleware.rate_limit import RateLimitMiddleware
     app.add_middleware(
         RateLimitMiddleware,
@@ -154,6 +165,10 @@ def create_app() -> FastAPI:
     # Usage metering and plan enforcement
     from src.api.middleware.usage_enforcement import UsageEnforcementMiddleware
     app.add_middleware(UsageEnforcementMiddleware)
+
+    # Prometheus metrics collection
+    from src.api.metrics import MetricsMiddleware
+    app.add_middleware(MetricsMiddleware)
 
     # Exception handlers
     @app.exception_handler(Exception)
@@ -265,6 +280,7 @@ def create_app() -> FastAPI:
     from src.api.search import router as search_router
     from src.api.websocket import ws_router
     from src.api.cache_routes import router as cache_router
+    from src.api.metrics import router as metrics_router
     from src.modules.auth.api.routes import require_auth
     from src.modules.communications.api.webhook_routes import webhook_router
     from src.modules.sales.api.erp_routes import router as erp_router
@@ -272,6 +288,9 @@ def create_app() -> FastAPI:
 
     # WebSocket & Task Status
     app.include_router(ws_router, tags=["WebSocket"])
+
+    # Prometheus metrics (no auth)
+    app.include_router(metrics_router, tags=["Monitoring"])
 
     # Auth Routes (no auth required — login/register are public)
     app.include_router(auth_router, prefix="/api/v1", tags=["Auth"])
