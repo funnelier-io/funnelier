@@ -713,12 +713,16 @@ Basic dashboard with:
 - `.env.production.example` template with all config keys
 - Expanded Makefile: 25+ commands covering dev, test, lint, docker, production, k8s, deploy
 
-### Phase 26: Advanced Analytics & Predictive Models (Planned)
-- Customer churn prediction model (scikit-learn or similar)
-- Lead scoring ML pipeline
-- Campaign ROI forecasting
-- A/B test statistical significance calculator
-- Cohort analysis with retention curves
+### Phase 26: Advanced Analytics & Predictive Models ✅
+- **Churn Prediction**: Weighted scoring across recency, frequency, monetary, engagement dimensions + stage penalty. Risk levels: low/medium/high/critical with Persian recommendations and actions per risk level.
+- **Lead Scoring**: Multi-factor scoring (stage progression 0-30, engagement 0-25, recency 0-20, purchase history 0-15, call quality 0-10). Grades A-F with recommended actions.
+- **Campaign ROI Calculator**: ROI %, cost per lead/conversion, break-even analysis with configurable product margin.
+- **A/B Test Significance**: Two-proportion z-test with Abramowitz & Stegun normal CDF approximation. Required sample size estimation, confidence levels 90%/95%/99%.
+- **Retention Curves**: Cohort-based retention analysis with weekly/monthly periods. Heatmap-style cohort table and average retention line chart.
+- **Backend**: `PredictiveAnalyticsService` (pure statistics, no ML deps), API routes at `/api/v1/analytics/predictive/` (churn, lead-scores, ab-test, campaign-roi, retention).
+- **Frontend**: Full dashboard page at `/predictive` with 5 tabs (Churn Risk, Lead Scoring, A/B Test Calculator, Campaign ROI Calculator, Retention Curves). Recharts visualizations (PieChart, BarChart, LineChart). Interactive forms for A/B test and ROI calculators.
+- **i18n**: Full Persian + English translations for all predictive analytics labels.
+- **Tests**: 23 unit tests covering all 5 analysis methods. 204 total unit tests passing.
 
 ### Phase 27: API Rate Limiting & Caching (Planned)
 - Redis-backed API rate limiting per tenant
