@@ -82,6 +82,14 @@ async def lifespan(app: FastAPI):
     await init_database()
     await _seed_default_tenant()
 
+    # Initialise shared Redis pool (used by rate limiter, cache, WS)
+    try:
+        from src.infrastructure.redis_pool import init_redis_pool
+        await init_redis_pool()
+        logger.info("Shared Redis pool ready")
+    except Exception as e:
+        logger.warning("Could not initialise Redis pool: %s", e)
+
     # Start WebSocket Redis pub/sub listener (non-blocking)
     try:
         from src.api.websocket import start_redis_listener
@@ -99,6 +107,14 @@ async def lifespan(app: FastAPI):
             await _redis_listener_task
         except asyncio.CancelledError:
             pass
+
+    # Close Redis pool
+    try:
+        from src.infrastructure.redis_pool import close_redis_pool
+        await close_redis_pool()
+    except Exception:
+        pass
+
     await close_database()
 
 
@@ -123,6 +139,17 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    # Per-tenant API rate limiting (added after CORS so CORS headers are always present)
+    from src.api.middleware.rate_limit import RateLimitMiddleware
+    app.add_middleware(
+        RateLimitMiddleware,
+        requests_per_minute=settings.rate_limit_requests_per_minute,
+    )
+
+    # Response caching for expensive analytics endpoints
+    from src.api.middleware.response_cache import ResponseCacheMiddleware
+    app.add_middleware(ResponseCacheMiddleware)
 
     # Exception handlers
     @app.exception_handler(Exception)
@@ -233,9 +260,11 @@ def create_app() -> FastAPI:
     )
     from src.api.search import router as search_router
     from src.api.websocket import ws_router
+    from src.api.cache_routes import router as cache_router
     from src.modules.auth.api.routes import require_auth
     from src.modules.communications.api.webhook_routes import webhook_router
     from src.modules.sales.api.erp_routes import router as erp_router
+    from src.api.middleware.import_throttle import import_throttle
 
     # WebSocket & Task Status
     app.include_router(ws_router, tags=["WebSocket"])
@@ -249,7 +278,7 @@ def create_app() -> FastAPI:
     # Protected API Routes — require authenticated user
     app.include_router(
         import_router, prefix="/api/v1",
-        tags=["Import"], dependencies=[Depends(require_auth)],
+        tags=["Import"], dependencies=[Depends(require_auth), Depends(import_throttle)],
     )
     app.include_router(
         leads_router, prefix="/api/v1/leads",
@@ -302,6 +331,10 @@ def create_app() -> FastAPI:
     app.include_router(
         audit_router, prefix="/api/v1",
         tags=["Audit Trail"], dependencies=[Depends(require_auth)],
+    )
+    app.include_router(
+        cache_router, prefix="/api/v1",
+        tags=["Cache Management"], dependencies=[Depends(require_auth)],
     )
 
     return app

@@ -28,6 +28,7 @@ class RedisSettings(BaseSettings):
 
     url: str = "redis://localhost:6381/0"
     cache_ttl: int = 3600  # 1 hour default
+    pool_size: int = 20
 
 
 class CelerySettings(BaseSettings):
@@ -160,6 +161,10 @@ class Settings(BaseSettings):
 
     # Rate limiting
     rate_limit_requests_per_minute: int = 100
+
+    # Import throttling
+    import_max_concurrent: int = 2
+    import_max_per_hour: int = 30
 
     # Pluggable provider selection
     messaging_provider: str = "mock"   # "mock" | "kavenegar" | custom

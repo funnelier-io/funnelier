@@ -724,11 +724,13 @@ Basic dashboard with:
 - **i18n**: Full Persian + English translations for all predictive analytics labels.
 - **Tests**: 23 unit tests covering all 5 analysis methods. 204 total unit tests passing.
 
-### Phase 27: API Rate Limiting & Caching (Planned)
-- Redis-backed API rate limiting per tenant
-- Response caching for expensive analytics queries
-- Cache invalidation on data changes
-- Request throttling for import endpoints
+### Phase 27: API Rate Limiting & Caching ✅
+- **Shared Redis Connection Pool** (`src/infrastructure/redis_pool.py`): Centralised async Redis pool initialised in app lifespan, used by rate limiter, cache, and WebSocket. Configurable pool size via `REDIS_POOL_SIZE`.
+- **Per-tenant Rate Limiting** (`src/api/middleware/rate_limit.py`): Starlette `BaseHTTPMiddleware` using Redis sliding-window counters. Tenant ID extracted from JWT for authenticated requests, IP-based for unauthenticated. Skips `/health`, `/api/docs`, webhooks. Returns `429 Too Many Requests` with `Retry-After`, `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset` headers. Configurable via `RATE_LIMIT_REQUESTS_PER_MINUTE` (default 100). Stricter 20/min IP-based limit on auth endpoints (brute-force protection).
+- **Response Caching** (`src/api/middleware/response_cache.py`): HTTP-level Redis cache for GET requests on 13 expensive analytics endpoints. Per-endpoint TTLs (120s for daily reports, 300s for funnel/predictive, 600s for cohort/recommendations). Cache key includes path + query params + tenant ID. `X-Cache: HIT/MISS` and `X-Cache-TTL` response headers.
+- **Cache Invalidation** (`src/core/cache.py`): `invalidate_tenant_cache(tenant_id, prefix)` scans and deletes matching Redis keys. `invalidate_all_cache()` for full flush. Cache management API at `/api/v1/cache/invalidate` (DELETE) and `/api/v1/cache/stats` (GET).
+- **Import Throttling** (`src/api/middleware/import_throttle.py`): Redis-based semaphore pattern limiting concurrent imports per tenant (default 2) + hourly rate limit (default 30/hour). Applied as FastAPI dependency on import routes. `release_import_semaphore()` helper for post-import cleanup. Configurable via `IMPORT_MAX_CONCURRENT` and `IMPORT_MAX_PER_HOUR`.
+- **Tests**: 22 unit tests covering rate limit key resolution, cache rules/TTLs/key building, serialisation, throttle constants, Redis pool lifecycle, config values. 226 total unit tests passing.
 
 ### Phase 28: Multi-tenant Billing & Usage Metering (Planned)
 - Usage tracking per tenant (contacts, SMS, API calls)
