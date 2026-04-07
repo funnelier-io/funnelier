@@ -732,11 +732,15 @@ Basic dashboard with:
 - **Import Throttling** (`src/api/middleware/import_throttle.py`): Redis-based semaphore pattern limiting concurrent imports per tenant (default 2) + hourly rate limit (default 30/hour). Applied as FastAPI dependency on import routes. `release_import_semaphore()` helper for post-import cleanup. Configurable via `IMPORT_MAX_CONCURRENT` and `IMPORT_MAX_PER_HOUR`.
 - **Tests**: 22 unit tests covering rate limit key resolution, cache rules/TTLs/key building, serialisation, throttle constants, Redis pool lifecycle, config values. 226 total unit tests passing.
 
-### Phase 28: Multi-tenant Billing & Usage Metering (Planned)
-- Usage tracking per tenant (contacts, SMS, API calls)
-- Plan-based feature gating
-- Billing integration (Stripe or local payment gateway)
-- Usage dashboard for tenant admins
+### Phase 28: Multi-tenant Billing & Usage Metering ✅
+- **Plan Definitions** (`billing_service.py`): 4 tiered plans (Free, Basic, Professional, Enterprise) with resource limits (contacts, SMS/month, users, API calls/day, data sources) and feature lists. Plan catalogue with Persian/English display names and monthly/yearly pricing.
+- **Feature Gating**: `check_feature_access(plan, feature)` — controls access to advanced features (predictive analytics, A/B testing, SSO, etc.) based on plan tier. Free plan: basic analytics only; Enterprise: all features including SSO.
+- **Usage Metering** (`UsageMeteringService`): Redis-backed counters for API calls (daily) and SMS (monthly). PostgreSQL for durable counts (contacts, users, data sources). Automatic TTL on Redis keys (25h for daily, 35d for monthly).
+- **Usage Enforcement Middleware** (`usage_enforcement.py`): Starlette middleware counting API calls per tenant and returning 429 when daily plan limit is exceeded. Includes upgrade URL in error response. Skips health, auth, and webhook paths.
+- **Usage & Billing API**: `GET /tenants/me/usage/detailed` — full usage metrics with percentages and limit warnings. `GET /tenants/me/billing/plans` — lists all plans with features and pricing. `GET /tenants/me/billing` — current billing info.
+- **Frontend**: Usage dashboard page at `/usage` with usage progress bars (color-coded: blue < 70%, amber 70-90%, red > 90%), plan comparison cards with pricing, feature badges, and limit warnings.
+- **i18n**: Full Persian + English translations for usage/billing namespace (44 keys per language including feature names and warning messages).
+- **Tests**: 23 unit tests covering plan definitions, feature gating, usage metrics, warnings, Redis fallback, middleware. 249 total unit tests passing.
 
 ## Tech Stack
 

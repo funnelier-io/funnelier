@@ -125,6 +125,7 @@ export const NAV_ITEMS = [
   { href: "/alerts", labelKey: "alerts", icon: "🔔" },
   { href: "/team", labelKey: "team", icon: "👥" },
   { href: "/users", labelKey: "users", icon: "🔑" },
+  { href: "/usage", labelKey: "usage", icon: "📊" },
   { href: "/activity", labelKey: "activity", icon: "📜" },
   { href: "/settings", labelKey: "settings", icon: "⚙️" },
 ] as const;

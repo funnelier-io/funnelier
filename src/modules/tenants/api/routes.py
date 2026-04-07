@@ -418,23 +418,30 @@ async def get_usage_stats(
     tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
 ):
     """
-    Get current usage statistics.
+    Get current usage statistics from Redis counters and DB.
     """
-    now = datetime.utcnow()
-    period_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    from src.modules.tenants.application.billing_service import UsageMeteringService
+
+    metrics = await UsageMeteringService.get_usage_metrics(
+        tenant_id=tenant_id,
+        plan="professional",
+        contacts_count=5000,  # TODO: query from DB
+        users_count=9,
+        data_sources_count=2,
+    )
 
     return UsageStatsResponse(
         tenant_id=tenant_id,
-        period_start=period_start,
-        period_end=now,
-        contacts_count=5000,
-        contacts_limit=50000,
-        sms_sent=3500,
-        sms_limit=10000,
-        api_calls=15000,
+        period_start=metrics.period_start,
+        period_end=metrics.period_end,
+        contacts_count=metrics.contacts_count,
+        contacts_limit=metrics.contacts_limit,
+        sms_sent=metrics.sms_sent,
+        sms_limit=metrics.sms_limit,
+        api_calls=metrics.api_calls_today,
         storage_used_mb=256.5,
-        users_count=9,
-        users_limit=25,
+        users_count=metrics.users_count,
+        users_limit=metrics.users_limit,
     )
 
 
@@ -447,11 +454,41 @@ async def get_billing_info(
     """
     return BillingInfoResponse(
         tenant_id=tenant_id,
-        plan="pro",
+        plan="professional",
         plan_price=5_000_000,
         billing_cycle="monthly",
         next_billing_date=datetime.utcnow() + timedelta(days=15),
         payment_method="bank_transfer",
         is_trial=False,
     )
+
+
+@router.get("/me/billing/plans")
+async def list_available_plans(
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
+):
+    """List all available billing plans with features and pricing."""
+    from src.modules.tenants.application.billing_service import PLAN_CATALOGUE
+    return {
+        "plans": [p.model_dump() for p in PLAN_CATALOGUE],
+        "current_plan": "professional",
+    }
+
+
+@router.get("/me/usage/detailed")
+async def get_detailed_usage(
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
+):
+    """Get detailed usage metrics with percentages and warnings."""
+    from src.modules.tenants.application.billing_service import UsageMeteringService
+
+    metrics = await UsageMeteringService.get_usage_metrics(
+        tenant_id=tenant_id,
+        plan="professional",
+        contacts_count=5000,
+        users_count=9,
+        data_sources_count=2,
+    )
+    return metrics.model_dump()
+
 

@@ -151,6 +151,10 @@ def create_app() -> FastAPI:
     from src.api.middleware.response_cache import ResponseCacheMiddleware
     app.add_middleware(ResponseCacheMiddleware)
 
+    # Usage metering and plan enforcement
+    from src.api.middleware.usage_enforcement import UsageEnforcementMiddleware
+    app.add_middleware(UsageEnforcementMiddleware)
+
     # Exception handlers
     @app.exception_handler(Exception)
     async def global_exception_handler(
