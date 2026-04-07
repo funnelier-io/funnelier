@@ -265,6 +265,10 @@ Basic dashboard with:
 23. ✅ **Phase 23** - Audit Trail & Activity Log (tracking, filtering, change diffs)
 24. ✅ **Phase 24** - E2E Browser Tests (Playwright, 26 tests across 5 specs)
 25. ✅ **Phase 25** - CI/CD Pipeline & Production Deployment (GitHub Actions, Kubernetes, HPA, probes)
+26. ✅ **Phase 26** - Advanced Analytics & Predictive Models (churn, lead scoring, A/B test, ROI, retention)
+27. ✅ **Phase 27** - API Rate Limiting & Caching (Redis rate limiter, response cache, import throttle)
+28. ✅ **Phase 28** - Multi-tenant Billing & Usage Metering (plans, feature gating, usage enforcement)
+29. ✅ **Phase 29** - Structured Logging & Monitoring (structlog, request logging, Prometheus metrics)
 
 ## Phase 6 Details: Background Tasks & Real-time
 
@@ -742,12 +746,13 @@ Basic dashboard with:
 - **i18n**: Full Persian + English translations for usage/billing namespace (44 keys per language including feature names and warning messages).
 - **Tests**: 23 unit tests covering plan definitions, feature gating, usage metrics, warnings, Redis fallback, middleware. 249 total unit tests passing.
 
-### Phase 29: Structured Logging & Monitoring (Planned)
-- Structured JSON logging (structlog) with request_id, tenant_id, user_id context
-- Request/response logging middleware with duration, status, path
-- Sentry integration for error tracking (optional, via env var)
-- Prometheus metrics endpoint (`/metrics`) for observability
-- Log correlation across middleware, routes, and background tasks
+### Phase 29: Structured Logging & Monitoring ✅
+- **Structured JSON logging** (`src/core/logging.py`): structlog pipeline with `setup_logging()` called in app lifespan. Shared processors: merge context vars, add log level/name, ISO timestamps, unicode decode. JSON renderer for production, coloured console for dev. Quiets noisy third-party loggers (uvicorn.access, sqlalchemy.engine, httpcore).
+- **Request logging middleware** (`src/api/middleware/request_logging.py`): assigns `request_id` (8-char UUID prefix), extracts `tenant_id` and `user_id` from JWT, binds to structlog context vars for all downstream loggers. Logs `request_started` and `request_completed` with duration_ms and status_code. Quiet mode for `/health`, `/api/docs`, `/api/redoc`, `/api/openapi.json`. Adds `X-Request-ID` response header for traceability.
+- **Prometheus metrics endpoint** (`src/api/metrics.py`): lightweight in-process counters (no external deps). `_Metrics` class tracks request count, duration sum, status code distribution, 5xx error count. Path bucketing: UUIDs → `{id}`, numeric segments → `{n}` to prevent cardinality explosion. `GET /metrics` returns Prometheus text exposition format with `funnelier_uptime_seconds`, `funnelier_http_requests_total`, `funnelier_http_request_duration_seconds_sum`, `funnelier_http_responses_total`, `funnelier_http_errors_total`.
+- **MetricsMiddleware**: Starlette `BaseHTTPMiddleware` recording method/path/status/duration for every request (skips `/metrics` itself).
+- **Middleware order** updated (outermost first): CORS → RequestLogging → RateLimit → ResponseCache → UsageEnforcement → Metrics.
+- **Tests**: 16 unit tests covering logging setup (console/JSON), context var binding, quiet prefixes, request recording, multiple requests, 5xx/4xx counting, UUID/numeric path bucketing, Prometheus text rendering, empty metrics, uptime tracking. 265 total unit tests passing.
 
 ### Phase 30: Performance & Load Testing (Planned)
 - Locust load test scripts for key API flows
