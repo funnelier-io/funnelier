@@ -742,6 +742,19 @@ Basic dashboard with:
 - **i18n**: Full Persian + English translations for usage/billing namespace (44 keys per language including feature names and warning messages).
 - **Tests**: 23 unit tests covering plan definitions, feature gating, usage metrics, warnings, Redis fallback, middleware. 249 total unit tests passing.
 
+### Phase 29: Structured Logging & Monitoring (Planned)
+- Structured JSON logging (structlog) with request_id, tenant_id, user_id context
+- Request/response logging middleware with duration, status, path
+- Sentry integration for error tracking (optional, via env var)
+- Prometheus metrics endpoint (`/metrics`) for observability
+- Log correlation across middleware, routes, and background tasks
+
+### Phase 30: Performance & Load Testing (Planned)
+- Locust load test scripts for key API flows
+- Performance benchmarks for analytics endpoints
+- Database query optimization (N+1 detection, index tuning)
+- Redis connection pool optimization
+
 ## Tech Stack
 
 - **Backend**: FastAPI, SQLAlchemy 2.0 (async), Pydantic v2

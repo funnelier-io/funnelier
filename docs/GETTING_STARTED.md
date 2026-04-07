@@ -5,18 +5,27 @@ Funnelier (فانلیر) is a multi-tenant SaaS platform for B2B building-materi
 ## Prerequisites
 
 - Python 3.11+
-- PostgreSQL 15+
-- Redis 7+
-- MongoDB 6+ (for invoice/payment data sources)
 - Node.js 20+ (for the frontend)
-- Docker & Docker Compose (recommended for infrastructure)
+- Docker & Docker Compose (for shared dev infrastructure)
 
 ## Quick Setup
 
-### 1. Clone & Create Virtual Environment
+### 1. Start Shared Dev Infrastructure
+
+Funnelier uses a shared dev infrastructure for databases and reverse proxy.
 
 ```bash
-cd funnelier
+cd /Users/univers/projects/infra
+DOCKER_HOST="unix://${HOME}/.docker/run/docker.sock" docker compose up -d
+```
+
+This starts PostgreSQL (5435), Redis (6381), MongoDB (27017), and Traefik (80).  
+See [Infra ONBOARDING](/Users/univers/projects/infra/ONBOARDING.md) for details.
+
+### 2. Clone & Create Virtual Environment
+
+```bash
+cd /Users/univers/projects/funnelier
 
 # Create and activate virtual environment
 python -m venv venv
@@ -24,25 +33,7 @@ source venv/bin/activate   # macOS/Linux
 
 # Install backend with dev dependencies
 pip install -e ".[dev]"
-
-# Copy environment config and customise as needed
-cp .env.example .env
 ```
-
-### 2. Start Infrastructure (Docker Compose)
-
-```bash
-cd docker
-docker compose up -d postgres redis mongodb
-cd ..
-```
-
-This starts:
-| Service    | Host Port | Container Port |
-|------------|-----------|----------------|
-| PostgreSQL | 5433      | 5432           |
-| Redis      | 6384      | 6379           |
-| MongoDB    | 27019     | 27017          |
 
 ### 3. Run Database Migrations
 
@@ -56,30 +47,39 @@ PYTHONPATH=. alembic upgrade head
 PYTHONPATH=. uvicorn src.api.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-The API will be available at **http://localhost:8000**
-
+The API will be available at:
+- Direct: **http://localhost:8000**
+- Via Traefik: **http://api.funnelier.localhost**
 - Swagger Docs: http://localhost:8000/api/docs
-- ReDoc: http://localhost:8000/api/redoc
 - Health check: http://localhost:8000/health
 
 A default **admin** user is seeded automatically:
 - Username: `admin`
 - Password: `admin1234`
 
-### 5. Start the Frontend (optional)
+### 5. Start the Frontend
 
 ```bash
 cd frontend
 npm install
-npm run dev
+npm run dev -- -p 3003
 ```
 
-Frontend runs at **http://localhost:3000**.
+Frontend runs at:
+- Direct: **http://localhost:3003**
+- Via Traefik: **http://funnelier.localhost**
 
-### 6. Start Celery Worker (background tasks)
+### 6. Start Celery Worker (background tasks, optional)
 
 ```bash
 PYTHONPATH=. celery -A src.infrastructure.messaging.tasks worker --loglevel=info
+```
+
+### Quick alternative (Makefile)
+
+```bash
+make dev-backend    # Backend on :8000
+make dev-frontend   # Frontend on :3003
 ```
 
 ## Authentication
