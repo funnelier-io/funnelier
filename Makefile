@@ -58,6 +58,14 @@ pre-commit-install: ## Install pre-commit hooks
 ci: lint test-unit test-integration ## Run full CI pipeline locally
 	@echo "✅ CI passed"
 
+# ── Load Testing & Benchmarks ────────────────────────
+load-test: ## Run headless Locust load test (50 users, 60s)
+	locust -f tests/load/locustfile.py --headless -u 50 -r 5 -t 60s --host http://localhost:8000
+load-test-ui: ## Start Locust Web UI on :8089
+	locust -f tests/load/locustfile.py --host http://localhost:8000
+benchmark: ## Run analytics endpoint benchmark
+	python scripts/benchmark_analytics.py --host http://localhost:8000 --requests 50
+
 # ── Docker ───────────────────────────────────────────
 build: ## Build frontend for production
 	cd frontend && npm run build

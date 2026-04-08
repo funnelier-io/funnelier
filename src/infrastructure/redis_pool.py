@@ -25,6 +25,11 @@ async def init_redis_pool() -> aioredis.Redis:
             settings.redis.url,
             decode_responses=True,
             max_connections=settings.redis.pool_size,
+            socket_timeout=settings.redis.socket_timeout,
+            socket_connect_timeout=settings.redis.socket_connect_timeout,
+            socket_keepalive=True,
+            retry_on_timeout=settings.redis.retry_on_timeout,
+            health_check_interval=settings.redis.health_check_interval,
         )
         # Verify connectivity
         try:

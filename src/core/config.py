@@ -18,6 +18,8 @@ class DatabaseSettings(BaseSettings):
     url: str = "postgresql+asyncpg://funnelier:funnelier@localhost:5435/funnelier"
     pool_size: int = 20
     max_overflow: int = 10
+    pool_recycle: int = 1800  # seconds — recycle connections older than 30 min
+    pool_timeout: int = 30    # seconds — wait for a free connection before raising
     echo: bool = False
 
 
@@ -29,6 +31,10 @@ class RedisSettings(BaseSettings):
     url: str = "redis://localhost:6381/0"
     cache_ttl: int = 3600  # 1 hour default
     pool_size: int = 20
+    socket_timeout: float = 5.0          # seconds — timeout on read/write
+    socket_connect_timeout: float = 3.0  # seconds — timeout on initial connect
+    retry_on_timeout: bool = True
+    health_check_interval: int = 30      # seconds — automatic PING interval
 
 
 class CelerySettings(BaseSettings):

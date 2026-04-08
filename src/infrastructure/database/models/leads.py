@@ -100,5 +100,7 @@ class ContactModel(Base, UUIDMixin, TimestampMixin):
         Index("ix_contacts_tenant_phone", "tenant_id", "phone_number", unique=True),
         Index("ix_contacts_tenant_stage", "tenant_id", "current_stage"),
         Index("ix_contacts_tenant_segment", "tenant_id", "rfm_segment"),
+        Index("ix_contacts_tenant_assigned_to", "tenant_id", "assigned_to"),
+        Index("ix_contacts_tenant_created_at", "tenant_id", "created_at"),
     )
 

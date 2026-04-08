@@ -127,5 +127,6 @@ class CampaignRecipientModel(Base, UUIDMixin, TimestampMixin):
     __table_args__ = (
         Index("ix_campaign_recipients_campaign_status", "campaign_id", "status"),
         Index("ix_campaign_recipients_tenant_campaign", "tenant_id", "campaign_id"),
+        Index("ix_campaign_recipients_contact", "contact_id"),
     )
 

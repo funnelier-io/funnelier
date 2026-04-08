@@ -185,7 +185,7 @@ frontend/
 ## Testing
 
 ```bash
-# Run all unit tests (265 currently passing)
+# Run all unit tests (294 currently passing)
 python -m pytest tests/unit/ -q
 
 # Run a specific test file

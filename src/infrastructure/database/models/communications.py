@@ -97,6 +97,7 @@ class SMSLogModel(Base, UUIDMixin, TimestampMixin):
         Index("ix_sms_logs_tenant_phone", "tenant_id", "phone_number"),
         Index("ix_sms_logs_tenant_status", "tenant_id", "status"),
         Index("ix_sms_logs_tenant_sent_at", "tenant_id", "sent_at"),
+        Index("ix_sms_logs_tenant_campaign", "tenant_id", "campaign_id"),
     )
 
 
