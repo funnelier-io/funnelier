@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:camunda="http://camunda.org/schema/1.0/bpmn"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  id="Definitions_approval"
+                  targetNamespace="http://funnelier.ir/bpmn"
+                  exporter="Funnelier"
+                  exporterVersion="1.0">
+
+  <bpmn:process id="user_approval" name="User Approval" isExecutable="true">
+
+    <!-- Start: User registered -->
+    <bpmn:startEvent id="start" name="User Registered">
+      <bpmn:outgoing>flow_start_to_notify</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- External task: Notify admins about pending user -->
+    <bpmn:serviceTask id="notify_admins" name="Notify Admins"
+                      camunda:type="external" camunda:topic="notify-pending-user">
+      <bpmn:incoming>flow_start_to_notify</bpmn:incoming>
+      <bpmn:outgoing>flow_notify_to_review</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Human task: Admin reviews and decides -->
+    <bpmn:userTask id="admin_review" name="Review User Registration"
+                   camunda:candidateGroups="tenant_admin,super_admin">
+      <bpmn:incoming>flow_notify_to_review</bpmn:incoming>
+      <bpmn:incoming>flow_reminder_to_review</bpmn:incoming>
+      <bpmn:outgoing>flow_review_to_decision</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <!-- Gateway: Approved or Rejected? -->
+    <bpmn:exclusiveGateway id="gw_decision" name="Decision?">
+      <bpmn:incoming>flow_review_to_decision</bpmn:incoming>
+      <bpmn:outgoing>flow_approved</bpmn:outgoing>
+      <bpmn:outgoing>flow_rejected</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- External task: Activate the approved user -->
+    <bpmn:serviceTask id="activate_user" name="Activate User"
+                      camunda:type="external" camunda:topic="activate-approved-user">
+      <bpmn:incoming>flow_approved</bpmn:incoming>
+      <bpmn:outgoing>flow_activate_to_notify_user</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- External task: Notify the user of the result -->
+    <bpmn:serviceTask id="notify_user_approved" name="Notify User (Approved)"
+                      camunda:type="external" camunda:topic="notify-user-approved">
+      <bpmn:incoming>flow_activate_to_notify_user</bpmn:incoming>
+      <bpmn:outgoing>flow_to_end_approved</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:serviceTask id="notify_user_rejected" name="Notify User (Rejected)"
+                      camunda:type="external" camunda:topic="notify-user-rejected">
+      <bpmn:incoming>flow_rejected</bpmn:incoming>
+      <bpmn:outgoing>flow_to_end_rejected</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- End events -->
+    <bpmn:endEvent id="end_approved" name="User Approved">
+      <bpmn:incoming>flow_to_end_approved</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="end_rejected" name="User Rejected">
+      <bpmn:incoming>flow_to_end_rejected</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Boundary timer: Reminder after 48 hours -->
+    <bpmn:boundaryEvent id="timer_reminder" attachedToRef="admin_review" cancelActivity="false">
+      <bpmn:timerEventDefinition>
+        <bpmn:timeDuration>PT48H</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+      <bpmn:outgoing>flow_reminder_to_escalate</bpmn:outgoing>
+    </bpmn:boundaryEvent>
+
+    <!-- External task: Send reminder to admins -->
+    <bpmn:serviceTask id="send_reminder" name="Send Reminder"
+                      camunda:type="external" camunda:topic="send-approval-reminder">
+      <bpmn:incoming>flow_reminder_to_escalate</bpmn:incoming>
+      <bpmn:outgoing>flow_reminder_to_review</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="flow_start_to_notify" sourceRef="start" targetRef="notify_admins" />
+    <bpmn:sequenceFlow id="flow_notify_to_review" sourceRef="notify_admins" targetRef="admin_review" />
+    <bpmn:sequenceFlow id="flow_review_to_decision" sourceRef="admin_review" targetRef="gw_decision" />
+    <bpmn:sequenceFlow id="flow_approved" sourceRef="gw_decision" targetRef="activate_user">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${approved == true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="flow_rejected" sourceRef="gw_decision" targetRef="notify_user_rejected">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${approved == false}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="flow_activate_to_notify_user" sourceRef="activate_user" targetRef="notify_user_approved" />
+    <bpmn:sequenceFlow id="flow_to_end_approved" sourceRef="notify_user_approved" targetRef="end_approved" />
+    <bpmn:sequenceFlow id="flow_to_end_rejected" sourceRef="notify_user_rejected" targetRef="end_rejected" />
+    <bpmn:sequenceFlow id="flow_reminder_to_escalate" sourceRef="timer_reminder" targetRef="send_reminder" />
+    <bpmn:sequenceFlow id="flow_reminder_to_review" sourceRef="send_reminder" targetRef="admin_review" />
+
+  </bpmn:process>
+
+</bpmn:definitions>
+

@@ -105,6 +105,22 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Could not start WebSocket Redis listener: {e}")
 
+    # Camunda BPMS: deploy BPMN processes on startup (non-blocking)
+    try:
+        from src.infrastructure.camunda.client import get_camunda_client
+        camunda = get_camunda_client()
+        if camunda.enabled and camunda.settings.auto_deploy:
+            from src.infrastructure.camunda.deployment import deploy_all_bpmn
+            deployments = await deploy_all_bpmn(camunda)
+            if deployments:
+                logger.info("Camunda: deployed %d BPMN process(es)", len(deployments))
+            else:
+                logger.info("Camunda: no new deployments (or engine unreachable)")
+        elif not camunda.enabled:
+            logger.info("Camunda BPMS disabled (set CAMUNDA_ENABLED=true to activate)")
+    except Exception as e:
+        logger.warning("Camunda startup error (non-fatal): %s", e)
+
     yield
 
     # Shutdown
@@ -119,6 +135,13 @@ async def lifespan(app: FastAPI):
     try:
         from src.infrastructure.redis_pool import close_redis_pool
         await close_redis_pool()
+    except Exception:
+        pass
+
+    # Close Camunda client
+    try:
+        from src.infrastructure.camunda.client import close_camunda_client
+        await close_camunda_client()
     except Exception:
         pass
 
@@ -222,6 +245,18 @@ def create_app() -> FastAPI:
             checks["redis"] = f"error: {e}"
             healthy = False
 
+        # Check Camunda (optional — don't fail readiness if disabled)
+        try:
+            from src.infrastructure.camunda.client import get_camunda_client
+            camunda = get_camunda_client()
+            if camunda.enabled:
+                is_healthy = await camunda.check_health()
+                checks["camunda"] = "ok" if is_healthy else "unreachable"
+            else:
+                checks["camunda"] = "disabled"
+        except Exception as e:
+            checks["camunda"] = f"error: {e}"
+
         status_code = 200 if healthy else 503
         return JSONResponse(
             status_code=status_code,
@@ -276,6 +311,7 @@ def create_app() -> FastAPI:
         export_router,
         notifications_router,
         audit_router,
+        processes_router,
     )
     from src.api.search import router as search_router
     from src.api.websocket import ws_router
@@ -358,6 +394,10 @@ def create_app() -> FastAPI:
     app.include_router(
         cache_router, prefix="/api/v1",
         tags=["Cache Management"], dependencies=[Depends(require_auth)],
+    )
+    app.include_router(
+        processes_router, prefix="/api/v1",
+        tags=["Camunda BPMS"], dependencies=[Depends(require_auth)],
     )
 
     return app

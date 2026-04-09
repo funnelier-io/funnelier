@@ -187,6 +187,12 @@ class Settings(BaseSettings):
     funnel: FunnelSettings = Field(default_factory=FunnelSettings)
     upload: UploadSettings = Field(default_factory=UploadSettings)
 
+    # Camunda BPMS (lazy import to avoid circular deps)
+    @property
+    def camunda(self):
+        from src.infrastructure.camunda.config import CamundaSettings
+        return CamundaSettings()
+
     @field_validator("cors_origins", mode="before")
     @classmethod
     def parse_cors_origins(cls, v: Any) -> list[str]:

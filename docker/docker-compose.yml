@@ -120,9 +120,32 @@ services:
     depends_on:
       - api
 
+  # Camunda 7 BPMS (workflow engine)
+  camunda:
+    image: camunda/camunda-bpm-platform:7.21.0
+    container_name: funnelier-camunda
+    ports:
+      - "8085:8080"
+    environment:
+      - DB_DRIVER=org.h2.Driver
+      - DB_URL=jdbc:h2:./camunda-h2-default/process-engine;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+      - DB_USERNAME=sa
+      - DB_PASSWORD=sa
+      - WAIT_FOR_TIMEOUT=30
+    volumes:
+      - camunda_data:/camunda/camunda-h2-default
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/engine-rest/engine"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
 volumes:
   postgres_data:
   redis_data:
   mongodb_data:
   upload_data:
+  camunda_data:
 

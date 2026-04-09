@@ -18,6 +18,7 @@ from src.modules.tenants.api import router as tenants_router
 from src.modules.export.api import router as export_router
 from src.modules.notifications.api import router as notifications_router
 from src.modules.audit.api import router as audit_router
+from src.api.routes.processes import router as processes_router
 
 __all__ = [
     "auth_router",
@@ -33,4 +34,5 @@ __all__ = [
     "export_router",
     "notifications_router",
     "audit_router",
+    "processes_router",
 ]

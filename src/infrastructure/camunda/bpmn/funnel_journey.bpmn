@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:camunda="http://camunda.org/schema/1.0/bpmn"
+                  id="Definitions_funnel"
+                  targetNamespace="http://funnelier.ir/bpmn"
+                  exporter="Funnelier"
+                  exporterVersion="1.0">
+
+  <!-- Messages for funnel stage transitions -->
+  <bpmn:message id="msg_sms_sent" name="sms_sent" />
+  <bpmn:message id="msg_sms_delivered" name="sms_delivered" />
+  <bpmn:message id="msg_call_attempted" name="call_attempted" />
+  <bpmn:message id="msg_call_answered" name="call_answered" />
+  <bpmn:message id="msg_invoice_issued" name="invoice_issued" />
+  <bpmn:message id="msg_payment_received" name="payment_received" />
+
+  <bpmn:process id="funnel_journey" name="Funnel Journey" isExecutable="true">
+
+    <!-- Start: Lead acquired -->
+    <bpmn:startEvent id="start" name="Lead Acquired">
+      <bpmn:outgoing>flow_start_to_wait_sms</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Wait for SMS sent event -->
+    <bpmn:intermediateCatchEvent id="wait_sms_sent" name="SMS Sent">
+      <bpmn:incoming>flow_start_to_wait_sms</bpmn:incoming>
+      <bpmn:outgoing>flow_sms_sent_to_delivered</bpmn:outgoing>
+      <bpmn:messageEventDefinition messageRef="msg_sms_sent" />
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Wait for SMS delivered event -->
+    <bpmn:intermediateCatchEvent id="wait_sms_delivered" name="SMS Delivered">
+      <bpmn:incoming>flow_sms_sent_to_delivered</bpmn:incoming>
+      <bpmn:outgoing>flow_delivered_to_call</bpmn:outgoing>
+      <bpmn:messageEventDefinition messageRef="msg_sms_delivered" />
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Wait for call attempted event -->
+    <bpmn:intermediateCatchEvent id="wait_call_attempted" name="Call Attempted">
+      <bpmn:incoming>flow_delivered_to_call</bpmn:incoming>
+      <bpmn:outgoing>flow_call_to_answered</bpmn:outgoing>
+      <bpmn:messageEventDefinition messageRef="msg_call_attempted" />
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Wait for call answered event (>= 90 seconds) -->
+    <bpmn:intermediateCatchEvent id="wait_call_answered" name="Call Answered">
+      <bpmn:incoming>flow_call_to_answered</bpmn:incoming>
+      <bpmn:outgoing>flow_answered_to_invoice</bpmn:outgoing>
+      <bpmn:messageEventDefinition messageRef="msg_call_answered" />
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Wait for invoice issued event -->
+    <bpmn:intermediateCatchEvent id="wait_invoice_issued" name="Invoice Issued">
+      <bpmn:incoming>flow_answered_to_invoice</bpmn:incoming>
+      <bpmn:outgoing>flow_invoice_to_payment</bpmn:outgoing>
+      <bpmn:messageEventDefinition messageRef="msg_invoice_issued" />
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Wait for payment received event -->
+    <bpmn:intermediateCatchEvent id="wait_payment_received" name="Payment Received">
+      <bpmn:incoming>flow_invoice_to_payment</bpmn:incoming>
+      <bpmn:outgoing>flow_payment_to_end</bpmn:outgoing>
+      <bpmn:messageEventDefinition messageRef="msg_payment_received" />
+    </bpmn:intermediateCatchEvent>
+
+    <!-- End: Fully converted -->
+    <bpmn:endEvent id="end_converted" name="Converted">
+      <bpmn:incoming>flow_payment_to_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="flow_start_to_wait_sms" sourceRef="start" targetRef="wait_sms_sent" />
+    <bpmn:sequenceFlow id="flow_sms_sent_to_delivered" sourceRef="wait_sms_sent" targetRef="wait_sms_delivered" />
+    <bpmn:sequenceFlow id="flow_delivered_to_call" sourceRef="wait_sms_delivered" targetRef="wait_call_attempted" />
+    <bpmn:sequenceFlow id="flow_call_to_answered" sourceRef="wait_call_attempted" targetRef="wait_call_answered" />
+    <bpmn:sequenceFlow id="flow_answered_to_invoice" sourceRef="wait_call_answered" targetRef="wait_invoice_issued" />
+    <bpmn:sequenceFlow id="flow_invoice_to_payment" sourceRef="wait_invoice_issued" targetRef="wait_payment_received" />
+    <bpmn:sequenceFlow id="flow_payment_to_end" sourceRef="wait_payment_received" targetRef="end_converted" />
+
+  </bpmn:process>
+
+</bpmn:definitions>
+

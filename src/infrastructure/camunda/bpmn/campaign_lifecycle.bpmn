@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:camunda="http://camunda.org/schema/1.0/bpmn"
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  id="Definitions_campaign"
+                  targetNamespace="http://funnelier.ir/bpmn"
+                  exporter="Funnelier"
+                  exporterVersion="1.0">
+
+  <!-- Messages -->
+  <bpmn:message id="msg_delivery_complete" name="delivery_complete" />
+  <bpmn:message id="msg_campaign_pause" name="campaign_pause" />
+  <bpmn:message id="msg_campaign_resume" name="campaign_resume" />
+  <bpmn:message id="msg_campaign_cancel" name="campaign_cancel" />
+
+  <bpmn:process id="campaign_lifecycle" name="Campaign Lifecycle" isExecutable="true">
+
+    <!-- Start: Campaign created -->
+    <bpmn:startEvent id="start" name="Campaign Created">
+      <bpmn:outgoing>flow_start_to_prepare</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- External task: Prepare recipient list -->
+    <bpmn:serviceTask id="prepare_recipients" name="Prepare Recipients"
+                      camunda:type="external" camunda:topic="prepare-campaign-recipients">
+      <bpmn:incoming>flow_start_to_prepare</bpmn:incoming>
+      <bpmn:outgoing>flow_prepare_to_gateway</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Gateway: Check if recipients exist -->
+    <bpmn:exclusiveGateway id="gw_has_recipients" name="Has Recipients?">
+      <bpmn:incoming>flow_prepare_to_gateway</bpmn:incoming>
+      <bpmn:outgoing>flow_gw_to_send</bpmn:outgoing>
+      <bpmn:outgoing>flow_gw_to_no_recipients</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- External task: Send SMS batch -->
+    <bpmn:serviceTask id="send_sms_batch" name="Send SMS Batch"
+                      camunda:type="external" camunda:topic="send-campaign-sms">
+      <bpmn:incoming>flow_gw_to_send</bpmn:incoming>
+      <bpmn:outgoing>flow_send_to_track</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- External task: Track delivery status -->
+    <bpmn:serviceTask id="track_delivery" name="Track Delivery"
+                      camunda:type="external" camunda:topic="track-sms-delivery">
+      <bpmn:incoming>flow_send_to_track</bpmn:incoming>
+      <bpmn:outgoing>flow_track_to_measure</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- External task: Measure campaign results -->
+    <bpmn:serviceTask id="measure_results" name="Measure Results"
+                      camunda:type="external" camunda:topic="measure-campaign-results">
+      <bpmn:incoming>flow_track_to_measure</bpmn:incoming>
+      <bpmn:outgoing>flow_measure_to_complete</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- End: Campaign completed -->
+    <bpmn:endEvent id="end_completed" name="Campaign Completed">
+      <bpmn:incoming>flow_measure_to_complete</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- End: No recipients (campaign had no matching contacts) -->
+    <bpmn:endEvent id="end_no_recipients" name="No Recipients">
+      <bpmn:incoming>flow_gw_to_no_recipients</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="flow_start_to_prepare" sourceRef="start" targetRef="prepare_recipients" />
+    <bpmn:sequenceFlow id="flow_prepare_to_gateway" sourceRef="prepare_recipients" targetRef="gw_has_recipients" />
+    <bpmn:sequenceFlow id="flow_gw_to_send" sourceRef="gw_has_recipients" targetRef="send_sms_batch">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${recipient_count &gt; 0}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="flow_gw_to_no_recipients" sourceRef="gw_has_recipients" targetRef="end_no_recipients">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${recipient_count == 0}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="flow_send_to_track" sourceRef="send_sms_batch" targetRef="track_delivery" />
+    <bpmn:sequenceFlow id="flow_track_to_measure" sourceRef="track_delivery" targetRef="measure_results" />
+    <bpmn:sequenceFlow id="flow_measure_to_complete" sourceRef="measure_results" targetRef="end_completed" />
+
+  </bpmn:process>
+
+</bpmn:definitions>
+
