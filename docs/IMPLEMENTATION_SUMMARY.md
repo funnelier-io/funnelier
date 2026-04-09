@@ -756,7 +756,7 @@ Basic dashboard with:
 - **Middleware order** updated (outermost first): CORS → RequestLogging → RateLimit → ResponseCache → UsageEnforcement → Metrics.
 - **Tests**: 16 unit tests covering logging setup (console/JSON), context var binding, quiet prefixes, request recording, multiple requests, 5xx/4xx counting, UUID/numeric path bucketing, Prometheus text rendering, empty metrics, uptime tracking. 265 total unit tests passing.
 
-### Phase 30: Performance & Load Testing (Planned)
+### Phase 30: Performance & Load Testing ✅
 - Locust load test scripts for key API flows
 - Performance benchmarks for analytics endpoints
 - Database query optimization (N+1 detection, index tuning)
@@ -773,6 +773,45 @@ Basic dashboard with:
 - **Backward Compatibility**: Old formatters (`fmtNum`, `fmtDate`, etc.) preserved as deprecated re-exports from `utils.ts` → `format.ts`.
 - **Type Definitions**: TypeScript declarations for `jalaali-js` library (`src/types/jalaali-js.d.ts`).
 - Next.js build passes for both `fa` and `en` locales. 294 backend unit tests passing.
+
+## Upcoming Phases (Roadmap)
+
+### Phase 32: Camunda BPMS — Infrastructure Setup
+- Add Camunda 7 Platform Docker container to `docker/docker-compose.yml` (port `8085`)
+- Create `src/infrastructure/camunda/` module with REST API client
+- Deploy "hello world" BPMN process, verify external task worker pattern in Python
+- Add `camunda-external-task-client-python3` dependency
+- Add Camunda health check to `/health/ready` endpoint
+- Unit tests for REST client
+- See [CAMUNDA_FEASIBILITY.md](./CAMUNDA_FEASIBILITY.md) for full analysis
+
+### Phase 33: Camunda BPMS — Campaign Workflow Migration
+- Design `campaign_lifecycle.bpmn` in Camunda Modeler
+- Build external task workers: prepare recipients, send SMS, track delivery
+- Migrate campaign API endpoints to start/correlate Camunda processes
+- Add `process_instance_id` to CampaignModel
+- Cockpit integration for campaign monitoring
+- Backward-compatible API (existing endpoints unchanged)
+
+### Phase 34: Camunda BPMS — User Approval Workflow
+- Design `user_approval.bpmn` with human task nodes
+- Build approval task worker
+- Migrate register → approve/reject flow to Camunda
+- Timer-based escalation (auto-notify after 48h, auto-reject after 7d)
+- Frontend approval UI backed by Camunda process state
+
+### Phase 35: Camunda BPMS — Funnel Journey Orchestration
+- Design `funnel_journey.bpmn` with message correlation events
+- Message correlation for: SMS delivered, call answered, invoice issued, payment received
+- Per-tenant BPMN generation from `FunnelStageConfig`
+- Batch creation patterns for high-volume imports
+- Visual funnel monitoring in Cockpit
+
+### Phase 36: Camunda BPMS — Advanced Process Features
+- Compensation sub-processes for failed SMS sends
+- Timer events for stale campaign auto-completion
+- ERP sync failure escalation workflow
+- Dashboard widget showing process instance overview from Camunda
 
 ## Tech Stack
 
