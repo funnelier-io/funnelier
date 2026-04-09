@@ -2,8 +2,9 @@
 
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { useTranslations } from "next-intl";
+import { useFormat } from "@/lib/use-format";
 import { SEGMENT_LABELS, SEGMENT_COLORS } from "@/lib/constants";
-import { fmtNum } from "@/lib/utils";
+
 import type { SegmentCount } from "@/types/segments";
 
 interface RFMDoughnutChartProps {
@@ -12,6 +13,7 @@ interface RFMDoughnutChartProps {
 
 export default function RFMDoughnutChart({ data }: RFMDoughnutChartProps) {
   const t = useTranslations("charts");
+  const fmt = useFormat();
 
   const chartData = data
     .filter((s) => s.count > 0)
@@ -50,7 +52,7 @@ export default function RFMDoughnutChart({ data }: RFMDoughnutChartProps) {
           ))}
         </Pie>
         <Tooltip
-          formatter={(value) => [fmtNum(value as number), t("count")]}
+          formatter={(value) => [fmt.number(value as number), t("count")]}
         />
         <Legend
           layout="vertical"

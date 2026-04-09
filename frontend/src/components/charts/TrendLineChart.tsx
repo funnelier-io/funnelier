@@ -11,7 +11,8 @@ import {
   Legend,
 } from "recharts";
 import { useTranslations } from "next-intl";
-import { fmtNum, fmtDate } from "@/lib/utils";
+import { useFormat } from "@/lib/use-format";
+
 import type { DailySnapshot } from "@/types/analytics";
 
 interface TrendLineChartProps {
@@ -20,6 +21,7 @@ interface TrendLineChartProps {
 
 export default function TrendLineChart({ data }: TrendLineChartProps) {
   const t = useTranslations("charts");
+  const fmt = useFormat();
 
   if (data.length === 0) {
     return (
@@ -30,7 +32,7 @@ export default function TrendLineChart({ data }: TrendLineChartProps) {
   }
 
   const chartData = data.map((s) => ({
-    date: fmtDate(s.date),
+    date: fmt.date(s.date),
     new_leads: s.new_leads,
     new_conversions: s.new_conversions,
     conversion_rate: +(s.conversion_rate * 100).toFixed(1),
@@ -52,7 +54,7 @@ export default function TrendLineChart({ data }: TrendLineChartProps) {
               new_conversions: t("newConversions"),
               conversion_rate: t("conversionRatePercent"),
             };
-            return [fmtNum(value as number), labels[name as string] || String(name)];
+            return [fmt.number(value as number), labels[name as string] || String(name)];
           }}
         />
         <Legend

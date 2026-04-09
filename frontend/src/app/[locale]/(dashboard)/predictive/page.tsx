@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
+import { useFormat } from "@/lib/use-format";
 import {
   LineChart,
   Line,
@@ -20,7 +21,7 @@ import {
 import { useApi } from "@/lib/hooks";
 import { api } from "@/lib/api-client";
 import StatCard from "@/components/ui/StatCard";
-import { fmtNum, fmtPercent, fmtPercentRaw, fmtCurrency, cn } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import type {
   ChurnSummary,
   LeadScoringResult,
@@ -48,6 +49,7 @@ type Tab = "churn" | "scoring" | "abtest" | "roi" | "retention";
 
 export default function PredictivePage() {
   const t = useTranslations("predictive");
+  const fmt = useFormat();
   const tc = useTranslations("common");
   const [activeTab, setActiveTab] = useState<Tab>("churn");
 
@@ -99,6 +101,7 @@ export default function PredictivePage() {
 function ChurnPanel() {
   const t = useTranslations("predictive");
   const tc = useTranslations("common");
+  const fmt = useFormat();
   const { data, isLoading } = useApi<ChurnSummary>("/analytics/predictive/churn");
 
   if (isLoading) return <Loading />;
@@ -116,20 +119,20 @@ function ChurnPanel() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           title={t("totalContacts")}
-          value={fmtNum(data.total_contacts)}
+          value={fmt.number(data.total_contacts)}
           icon="👥"
           color="text-blue-600"
         />
         <StatCard
           title={t("atRiskCount")}
-          value={fmtNum(data.at_risk_count)}
-          subtitle={fmtPercentRaw(data.at_risk_percentage)}
+          value={fmt.number(data.at_risk_count)}
+          subtitle={fmt.percentRaw(data.at_risk_percentage)}
           icon="⚠️"
           color="text-red-600"
         />
         <StatCard
           title={t("revenueAtRisk")}
-          value={fmtCurrency(data.estimated_revenue_at_risk)}
+          value={fmt.currency(data.estimated_revenue_at_risk)}
           icon="💸"
           color="text-amber-600"
         />
@@ -210,7 +213,7 @@ function ChurnPanel() {
                       {t(`risk_${c.risk_level}`)}
                     </span>
                   </td>
-                  <td className="py-2 px-3 font-mono">{fmtPercentRaw(c.churn_probability * 100)}</td>
+                  <td className="py-2 px-3 font-mono">{fmt.percentRaw(c.churn_probability * 100)}</td>
                   <td className="py-2 px-3">{c.days_since_last_activity ?? "—"}</td>
                   <td className="py-2 px-3 text-xs text-gray-500 max-w-[200px] truncate">{c.recommended_action}</td>
                 </tr>
@@ -229,6 +232,7 @@ function ChurnPanel() {
 
 function ScoringPanel() {
   const t = useTranslations("predictive");
+  const fmt = useFormat();
   const { data, isLoading } = useApi<LeadScoringResult>("/analytics/predictive/lead-scores");
 
   if (isLoading) return <Loading />;
@@ -247,20 +251,20 @@ function ScoringPanel() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           title={t("totalScored")}
-          value={fmtNum(data.total_scored)}
+          value={fmt.number(data.total_scored)}
           icon="⭐"
           color="text-blue-600"
         />
         <StatCard
           title={t("averageScore")}
-          value={fmtNum(Math.round(data.average_score))}
+          value={fmt.number(Math.round(data.average_score))}
           subtitle={`${t("outOf")} ۱۰۰`}
           icon="📊"
           color="text-green-600"
         />
         <StatCard
           title={t("gradeA")}
-          value={fmtNum(data.grade_distribution["A"] || 0)}
+          value={fmt.number(data.grade_distribution["A"] || 0)}
           subtitle={t("hotLeads")}
           icon="🔥"
           color="text-emerald-600"
@@ -363,6 +367,7 @@ function ScoringPanel() {
 
 function ABTestPanel() {
   const t = useTranslations("predictive");
+  const fmt = useFormat();
   const [form, setForm] = useState({
     test_name: "",
     variant_a_name: "کنترل (A)",
@@ -536,12 +541,12 @@ function ABTestPanel() {
               <div className="grid grid-cols-2 gap-3">
                 <div className="bg-blue-50 rounded-md p-3 text-center">
                   <div className="text-xs text-gray-500">{result.variant_a_name}</div>
-                  <div className="text-lg font-bold text-blue-700">{fmtPercentRaw(result.variant_a_rate * 100)}</div>
+                  <div className="text-lg font-bold text-blue-700">{fmt.percentRaw(result.variant_a_rate * 100)}</div>
                   <div className="text-xs text-gray-400">{result.variant_a_conversions}/{result.variant_a_total}</div>
                 </div>
                 <div className="bg-purple-50 rounded-md p-3 text-center">
                   <div className="text-xs text-gray-500">{result.variant_b_name}</div>
-                  <div className="text-lg font-bold text-purple-700">{fmtPercentRaw(result.variant_b_rate * 100)}</div>
+                  <div className="text-lg font-bold text-purple-700">{fmt.percentRaw(result.variant_b_rate * 100)}</div>
                   <div className="text-xs text-gray-400">{result.variant_b_conversions}/{result.variant_b_total}</div>
                 </div>
               </div>
@@ -550,8 +555,8 @@ function ABTestPanel() {
                 <div className="flex justify-between"><span className="text-gray-500">{t("relativeImprovement")}</span><span className="font-semibold">{result.relative_improvement > 0 ? "+" : ""}{result.relative_improvement.toFixed(1)}%</span></div>
                 <div className="flex justify-between"><span className="text-gray-500">{t("pValue")}</span><span className="font-mono">{result.p_value.toFixed(4)}</span></div>
                 <div className="flex justify-between"><span className="text-gray-500">{t("zScore")}</span><span className="font-mono">{result.z_score.toFixed(3)}</span></div>
-                <div className="flex justify-between"><span className="text-gray-500">{t("confidenceAchieved")}</span><span className="font-semibold">{fmtPercentRaw(result.confidence_level * 100)}</span></div>
-                <div className="flex justify-between"><span className="text-gray-500">{t("requiredSampleSize")}</span><span>{fmtNum(result.required_sample_size)}</span></div>
+                <div className="flex justify-between"><span className="text-gray-500">{t("confidenceAchieved")}</span><span className="font-semibold">{fmt.percentRaw(result.confidence_level * 100)}</span></div>
+                <div className="flex justify-between"><span className="text-gray-500">{t("requiredSampleSize")}</span><span>{fmt.number(result.required_sample_size)}</span></div>
               </div>
 
               <div className="bg-gray-50 rounded-md p-3 text-sm text-gray-600">
@@ -575,6 +580,7 @@ function ABTestPanel() {
 
 function ROIPanel() {
   const t = useTranslations("predictive");
+  const fmt = useFormat();
   const [form, setForm] = useState({
     campaign_name: "",
     total_cost: "",
@@ -724,26 +730,26 @@ function ROIPanel() {
               <div className="grid grid-cols-2 gap-3">
                 <div className="bg-gray-50 rounded-md p-3">
                   <div className="text-xs text-gray-500">{t("costPerLead")}</div>
-                  <div className="text-sm font-bold">{fmtCurrency(result.cost_per_lead)}</div>
+                  <div className="text-sm font-bold">{fmt.currency(result.cost_per_lead)}</div>
                 </div>
                 <div className="bg-gray-50 rounded-md p-3">
                   <div className="text-xs text-gray-500">{t("costPerConversion")}</div>
-                  <div className="text-sm font-bold">{fmtCurrency(result.cost_per_conversion)}</div>
+                  <div className="text-sm font-bold">{fmt.currency(result.cost_per_conversion)}</div>
                 </div>
                 <div className="bg-gray-50 rounded-md p-3">
                   <div className="text-xs text-gray-500">{t("conversionRate")}</div>
-                  <div className="text-sm font-bold">{fmtPercentRaw(result.conversion_rate * 100)}</div>
+                  <div className="text-sm font-bold">{fmt.percentRaw(result.conversion_rate * 100)}</div>
                 </div>
                 <div className="bg-gray-50 rounded-md p-3">
                   <div className="text-xs text-gray-500">{t("revenuePerLead")}</div>
-                  <div className="text-sm font-bold">{fmtCurrency(result.revenue_per_lead)}</div>
+                  <div className="text-sm font-bold">{fmt.currency(result.revenue_per_lead)}</div>
                 </div>
               </div>
 
               <div className="space-y-2 text-sm">
-                <div className="flex justify-between"><span className="text-gray-500">{t("totalCost")}</span><span>{fmtCurrency(result.total_cost)}</span></div>
-                <div className="flex justify-between"><span className="text-gray-500">{t("totalRevenue")}</span><span>{fmtCurrency(result.total_revenue)}</span></div>
-                <div className="flex justify-between"><span className="text-gray-500">{t("breakEven")}</span><span>{fmtNum(result.break_even_conversions)} {t("conversionsNeeded")}</span></div>
+                <div className="flex justify-between"><span className="text-gray-500">{t("totalCost")}</span><span>{fmt.currency(result.total_cost)}</span></div>
+                <div className="flex justify-between"><span className="text-gray-500">{t("totalRevenue")}</span><span>{fmt.currency(result.total_revenue)}</span></div>
+                <div className="flex justify-between"><span className="text-gray-500">{t("breakEven")}</span><span>{fmt.number(result.break_even_conversions)} {t("conversionsNeeded")}</span></div>
               </div>
             </div>
           ) : (
@@ -764,6 +770,7 @@ function ROIPanel() {
 function RetentionPanel() {
   const t = useTranslations("predictive");
   const tc = useTranslations("common");
+  const fmt = useFormat();
   const [periodType, setPeriodType] = useState<"weekly" | "monthly">("weekly");
   const { data, isLoading } = useApi<RetentionAnalysis>(
     `/analytics/predictive/retention?period_type=${periodType}&num_cohorts=8&num_periods=8`
@@ -786,13 +793,13 @@ function RetentionPanel() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           title={t("totalCohorts")}
-          value={fmtNum(data.cohorts.length)}
+          value={fmt.number(data.cohorts.length)}
           icon="📊"
           color="text-blue-600"
         />
         <StatCard
           title={t("overallChurn")}
-          value={fmtPercentRaw(data.overall_churn_rate * 100)}
+          value={fmt.percentRaw(data.overall_churn_rate * 100)}
           icon="📉"
           color="text-red-600"
         />
@@ -882,7 +889,7 @@ function RetentionPanel() {
                 {data.cohorts.map((cohort) => (
                   <tr key={cohort.cohort_label} className="border-b hover:bg-gray-50">
                     <td className="py-2 px-3 text-xs">{cohort.cohort_label}</td>
-                    <td className="py-2 px-3">{fmtNum(cohort.cohort_size)}</td>
+                    <td className="py-2 px-3">{fmt.number(cohort.cohort_size)}</td>
                     {Array.from({ length: Math.min(9, Object.keys(cohort.retention_by_period).length) }, (_, i) => {
                       const rate = cohort.retention_by_period[String(i)] ?? 0;
                       const pct = rate * 100;

@@ -2,10 +2,10 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useTranslations, useLocale } from "next-intl";
+import { useFormat } from "@/lib/use-format";
 import { useRouter } from "@/i18n/navigation";
 import { apiGet } from "@/lib/api-client";
 import { STAGE_LABELS, SEGMENT_LABELS, NAV_ITEMS } from "@/lib/constants";
-import { toPersianNum } from "@/lib/utils";
 
 interface SearchResultItem {
   id: string;
@@ -43,6 +43,7 @@ export default function CommandPalette() {
   const t = useTranslations("search");
   const tNav = useTranslations("nav");
   const locale = useLocale();
+  const fmt = useFormat();
   const isRtl = locale === "fa";
 
   // ⌘+K / Ctrl+K to toggle
@@ -305,7 +306,7 @@ export default function CommandPalette() {
               </span>
             </div>
             {results.length > 0 && (
-              <span>{isRtl ? toPersianNum(results.length) : results.length}</span>
+              <span>{fmt.digits(results.length)}</span>
             )}
           </div>
         </div>

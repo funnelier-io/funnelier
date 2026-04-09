@@ -4,13 +4,13 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { useApi } from "@/lib/hooks";
+import { useFormat } from "@/lib/use-format";
 import StatCard from "@/components/ui/StatCard";
 import ErrorAlert from "@/components/ui/ErrorAlert";
 import DateRangePicker from "@/components/ui/DateRangePicker";
 import FunnelBarChart from "@/components/charts/FunnelBarChart";
 import RFMDoughnutChart from "@/components/charts/RFMDoughnutChart";
 import TrendLineChart from "@/components/charts/TrendLineChart";
-import { fmtNum, fmtPercent, fmtCurrency } from "@/lib/utils";
 import { SEVERITY_CONFIG } from "@/lib/constants";
 import type { FunnelMetrics, FunnelTrend, DailyReport, OptimizationResponse } from "@/types/analytics";
 import type { SegmentDistribution } from "@/types/segments";
@@ -25,6 +25,7 @@ function daysAgo(n: number): string {
 export default function DashboardPage() {
   const t = useTranslations("dashboard");
   const tc = useTranslations("common");
+  const fmt = useFormat();
 
   const [startDate, setStartDate] = useState(() => daysAgo(30));
   const [endDate, setEndDate] = useState(() => new Date().toISOString().split("T")[0]);
@@ -70,33 +71,33 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           title={t("totalLeads")}
-          value={fmtNum(funnel.data?.total_leads)}
+          value={fmt.number(funnel.data?.total_leads)}
           icon="📋"
           color="text-blue-600"
           change={funnel.data?.leads_change_percent}
         />
         <StatCard
           title={t("conversions")}
-          value={fmtNum(funnel.data?.total_conversions)}
+          value={fmt.number(funnel.data?.total_conversions)}
           icon="✅"
           color="text-green-600"
           change={funnel.data?.conversions_change_percent}
         />
         <StatCard
           title={t("revenue")}
-          value={fmtCurrency(funnel.data?.total_revenue)}
+          value={fmt.currency(funnel.data?.total_revenue)}
           icon="💰"
           color="text-amber-600"
           change={funnel.data?.revenue_change_percent}
         />
         <StatCard
           title={t("conversionRate")}
-          value={fmtPercent(funnel.data?.overall_conversion_rate)}
+          value={fmt.percent(funnel.data?.overall_conversion_rate)}
           icon="📈"
           color="text-purple-600"
           subtitle={
             funnel.data?.average_days_to_convert
-              ? t("avgDaysToConvert", { days: fmtNum(funnel.data.average_days_to_convert) })
+              ? t("avgDaysToConvert", { days: fmt.number(funnel.data.average_days_to_convert) })
               : undefined
           }
         />
@@ -107,28 +108,28 @@ export default function DashboardPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard
             title={t("leadsToday")}
-            value={fmtNum(daily.data.leads.today)}
+            value={fmt.number(daily.data.leads.today)}
             icon="📥"
             color="text-blue-500"
             change={daily.data.leads.change_percent}
           />
           <StatCard
             title={t("smsSentToday")}
-            value={fmtNum(daily.data.sms.sent_today)}
+            value={fmt.number(daily.data.sms.sent_today)}
             icon="💬"
             color="text-purple-500"
-            subtitle={t("deliveryRate", { rate: fmtPercent(daily.data.sms.delivery_rate) })}
+            subtitle={t("deliveryRate", { rate: fmt.percent(daily.data.sms.delivery_rate) })}
           />
           <StatCard
             title={t("callsToday")}
-            value={fmtNum(daily.data.calls.total_today)}
+            value={fmt.number(daily.data.calls.total_today)}
             icon="📞"
             color="text-amber-500"
-            subtitle={t("answerRate", { rate: fmtPercent(daily.data.calls.answer_rate) })}
+            subtitle={t("answerRate", { rate: fmt.percent(daily.data.calls.answer_rate) })}
           />
           <StatCard
             title={t("revenueToday")}
-            value={fmtCurrency(daily.data.revenue.today)}
+            value={fmt.currency(daily.data.revenue.today)}
             icon="💵"
             color="text-green-500"
           />
@@ -233,7 +234,7 @@ export default function DashboardPage() {
                 href="/alerts"
                 className="text-xs text-blue-600 hover:text-blue-800"
               >
-                {tc("viewAll", { count: fmtNum(alerts.data.unacknowledged_count) })}
+                {tc("viewAll", { count: fmt.number(alerts.data.unacknowledged_count) })}
               </Link>
             )}
           </div>

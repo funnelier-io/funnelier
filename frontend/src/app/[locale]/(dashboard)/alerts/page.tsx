@@ -2,11 +2,12 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
+import { useFormat } from "@/lib/use-format";
 import { useApi } from "@/lib/hooks";
 import { apiPost } from "@/lib/api-client";
 import StatCard from "@/components/ui/StatCard";
 import DataTable from "@/components/ui/DataTable";
-import { fmtNum, fmtDate } from "@/lib/utils";
+
 import { SEVERITY_CONFIG } from "@/lib/constants";
 import type {
   AlertInstance,
@@ -17,6 +18,7 @@ import type {
 
 export default function AlertsPage() {
   const t = useTranslations("alerts");
+  const fmt = useFormat();
   const tc = useTranslations("common");
   const alerts = useApi<AlertListResponse>("/analytics/alerts");
   const rules = useApi<AlertRule[]>("/analytics/alerts/rules");
@@ -130,7 +132,7 @@ export default function AlertsPage() {
       header: t("colTime"),
       render: (a: AlertInstance) => (
         <span className="text-xs text-gray-500">
-          {fmtDate(a.triggered_at)}
+          {fmt.date(a.triggered_at)}
         </span>
       ),
     },
@@ -221,25 +223,25 @@ export default function AlertsPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           title={t("totalAlerts")}
-          value={fmtNum(totalAlerts)}
+          value={fmt.number(totalAlerts)}
           icon="🔔"
           color="text-blue-600"
         />
         <StatCard
           title={t("unacknowledged")}
-          value={fmtNum(unackCount)}
+          value={fmt.number(unackCount)}
           icon="⚠️"
           color="text-amber-600"
         />
         <StatCard
           title={t("critical")}
-          value={fmtNum(criticalCount)}
+          value={fmt.number(criticalCount)}
           icon="🔴"
           color="text-red-600"
         />
         <StatCard
           title={t("activeRules")}
-          value={fmtNum(
+          value={fmt.number(
             (rules.data ?? []).filter((r) => r.is_active).length
           )}
           icon="📏"
@@ -255,7 +257,7 @@ export default function AlertsPage() {
           </h2>
           {unackCount > 0 && (
             <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full">
-              {t("unacknowledgedCount", { count: fmtNum(unackCount) })}
+              {t("unacknowledgedCount", { count: fmt.number(unackCount) })}
             </span>
           )}
         </div>

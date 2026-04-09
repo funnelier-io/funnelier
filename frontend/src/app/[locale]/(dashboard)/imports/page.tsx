@@ -2,11 +2,11 @@
 
 import { useState, useRef } from "react";
 import { useTranslations } from "next-intl";
+import { useFormat } from "@/lib/use-format";
 import { useApi } from "@/lib/hooks";
 import { api } from "@/lib/api-client";
 import StatCard from "@/components/ui/StatCard";
 import DataTable from "@/components/ui/DataTable";
-import { fmtNum, fmtDate } from "@/lib/utils";
 
 /* ---------- types ---------- */
 
@@ -49,6 +49,7 @@ interface DataSummary {
 
 export default function ImportsPage() {
   const t = useTranslations("imports");
+  const fmt = useFormat();
   const tc = useTranslations("common");
   const [activeTab, setActiveTab] = useState<"scan" | "history" | "upload">(
     "scan"
@@ -165,10 +166,10 @@ export default function ImportsPage() {
         return <span className={`px-2 py-0.5 rounded-full text-xs ${cfg.color}`}>{cfg.label}</span>;
       },
     },
-    { key: "total_records", header: t("colTotalRecords"), render: (h: ImportHistoryItem) => fmtNum(h.total_records) },
-    { key: "success_records", header: t("colSuccess"), render: (h: ImportHistoryItem) => <span className="text-green-600">{fmtNum(h.success_records)}</span> },
-    { key: "error_records", header: t("colErrors"), render: (h: ImportHistoryItem) => <span className="text-red-600">{fmtNum(h.error_records)}</span> },
-    { key: "started_at", header: t("colDate"), render: (h: ImportHistoryItem) => fmtDate(h.started_at) },
+    { key: "total_records", header: t("colTotalRecords"), render: (h: ImportHistoryItem) => fmt.number(h.total_records) },
+    { key: "success_records", header: t("colSuccess"), render: (h: ImportHistoryItem) => <span className="text-green-600">{fmt.number(h.success_records)}</span> },
+    { key: "error_records", header: t("colErrors"), render: (h: ImportHistoryItem) => <span className="text-red-600">{fmt.number(h.error_records)}</span> },
+    { key: "started_at", header: t("colDate"), render: (h: ImportHistoryItem) => fmt.date(h.started_at) },
   ];
 
   const topCategories = stats.data?.by_category
@@ -195,10 +196,10 @@ export default function ImportsPage() {
       {/* Stats */}
       {stats.data && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard title={t("totalContacts")} value={fmtNum(stats.data.total_contacts)} icon="📋" color="text-blue-600" />
-          <StatCard title={t("categories")} value={fmtNum(Object.keys(stats.data.by_category).length)} icon="🏷️" color="text-purple-600" />
-          <StatCard title={t("availableFiles")} value={fmtNum(scan.data?.total_files)} icon="📂" color="text-amber-600" />
-          <StatCard title={t("segmentsCount")} value={fmtNum(Object.keys(stats.data.by_segment).length)} icon="🎯" color="text-green-600" />
+          <StatCard title={t("totalContacts")} value={fmt.number(stats.data.total_contacts)} icon="📋" color="text-blue-600" />
+          <StatCard title={t("categories")} value={fmt.number(Object.keys(stats.data.by_category).length)} icon="🏷️" color="text-purple-600" />
+          <StatCard title={t("availableFiles")} value={fmt.number(scan.data?.total_files)} icon="📂" color="text-amber-600" />
+          <StatCard title={t("segmentsCount")} value={fmt.number(Object.keys(stats.data.by_segment).length)} icon="🎯" color="text-green-600" />
         </div>
       )}
 
@@ -289,7 +290,7 @@ export default function ImportsPage() {
                     />
                   </div>
                   <span className="text-xs text-gray-500 w-20 text-left" dir="ltr">
-                    {fmtNum(count)} ({pct.toFixed(1)}%)
+                    {fmt.number(count)} ({pct.toFixed(1)}%)
                   </span>
                 </div>
               );

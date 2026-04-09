@@ -1,16 +1,18 @@
 "use client";
 
 import { useTranslations } from "next-intl";
+import { useFormat } from "@/lib/use-format";
 import { useApi } from "@/lib/hooks";
 import StatCard from "@/components/ui/StatCard";
 import RFMDoughnutChart from "@/components/charts/RFMDoughnutChart";
-import { fmtNum, fmtPercentRaw } from "@/lib/utils";
+
 import { SEGMENT_LABELS, SEGMENT_COLORS } from "@/lib/constants";
 import type { SegmentDistribution } from "@/types/segments";
 import type { AllRecommendationsResponse, SegmentRecommendation } from "@/types/segments";
 
 export default function SegmentsPage() {
   const t = useTranslations("segments");
+  const fmt = useFormat();
   const tc = useTranslations("common");
   const dist = useApi<SegmentDistribution>("/segments/distribution");
   const recs = useApi<AllRecommendationsResponse>("/segments/recommendations");
@@ -25,13 +27,13 @@ export default function SegmentsPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           title={t("totalContacts")}
-          value={fmtNum(dist.data?.total_contacts)}
+          value={fmt.number(dist.data?.total_contacts)}
           icon="👥"
           color="text-blue-600"
         />
         <StatCard
           title={t("activeSegments")}
-          value={fmtNum(activeSegments.length)}
+          value={fmt.number(activeSegments.length)}
           icon="🎯"
           color="text-green-600"
         />
@@ -47,7 +49,7 @@ export default function SegmentsPage() {
         />
         <StatCard
           title={t("totalSegments")}
-          value={fmtNum(dist.data?.segments?.length)}
+          value={fmt.number(dist.data?.segments?.length)}
           icon="📊"
           color="text-purple-600"
         />
@@ -90,9 +92,9 @@ export default function SegmentsPage() {
                   </span>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className="text-sm font-semibold">{fmtNum(s.count)}</span>
+                  <span className="text-sm font-semibold">{fmt.number(s.count)}</span>
                   <span className="text-xs text-gray-400">
-                    {fmtPercentRaw(s.percentage)}
+                    {fmt.percentRaw(s.percentage)}
                   </span>
                 </div>
               </div>

@@ -1031,6 +1031,50 @@
     "feature_multi_region": "چندمنطقه‌ای",
     "feature_audit_log": "لاگ حسابرسی",
     "feature_sso": "ورود یکپارچه (SSO)"
+  },
+  "calendar": {
+    "today": "امروز",
+    "months": {
+      "1": "فروردین",
+      "2": "اردیبهشت",
+      "3": "خرداد",
+      "4": "تیر",
+      "5": "مرداد",
+      "6": "شهریور",
+      "7": "مهر",
+      "8": "آبان",
+      "9": "آذر",
+      "10": "دی",
+      "11": "بهمن",
+      "12": "اسفند"
+    },
+    "weekdays": {
+      "0": "ش",
+      "1": "ی",
+      "2": "د",
+      "3": "س",
+      "4": "چ",
+      "5": "پ",
+      "6": "ج"
+    },
+    "relativeTime": {
+      "now": "همین الان",
+      "ago": "پیش",
+      "inFuture": "بعد",
+      "days": "روز",
+      "hours": "ساعت",
+      "minutes": "دقیقه"
+    }
+  },
+  "format": {
+    "dateFormat": "jalali",
+    "numberStyle": "persian",
+    "currencyUnit": "تومان",
+    "currencyMillionUnit": "میلیون تومان",
+    "currencyBillionUnit": "میلیارد تومان",
+    "percentSymbol": "٪",
+    "durationMinutes": "دقیقه",
+    "durationSeconds": "ثانیه"
   }
 }
 

@@ -10,7 +10,7 @@ import {
   CartesianGrid,
 } from "recharts";
 import { useTranslations } from "next-intl";
-import { fmtCurrency } from "@/lib/utils";
+import { useFormat } from "@/lib/use-format";
 
 interface SalesBarChartProps {
   data: { label: string; value: number; color?: string }[];
@@ -25,6 +25,7 @@ export default function SalesBarChart({
   height = 220,
 }: SalesBarChartProps) {
   const t = useTranslations("charts");
+  const fmt = useFormat();
 
   if (data.length === 0) {
     return (
@@ -55,7 +56,7 @@ export default function SalesBarChart({
           }}
         />
         <Tooltip
-          formatter={(value) => [fmtCurrency(value as number), t("revenue")]}
+          formatter={(value) => [fmt.currency(value as number), t("revenue")]}
         />
         <Bar dataKey="value" fill="#059669" radius={[4, 4, 0, 0]} />
       </BarChart>

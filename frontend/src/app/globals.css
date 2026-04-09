@@ -86,8 +86,21 @@ body {
     opacity: 1;
   }
 }
+@keyframes slide-in-right {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
 .animate-slide-in-left {
   animation: slide-in-left 0.25s ease-out;
+}
+[dir="rtl"] .animate-slide-in-left {
+  animation: slide-in-right 0.25s ease-out;
 }
 
 /* Slide-in animation for toast notifications */
@@ -101,6 +114,32 @@ body {
     opacity: 1;
   }
 }
+@keyframes slide-in-rtl {
+  from {
+    transform: translateX(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
 .animate-slide-in {
   animation: slide-in 0.25s ease-out;
+}
+[dir="rtl"] .animate-slide-in {
+  animation: slide-in-rtl 0.25s ease-out;
+}
+
+/* Jalali date picker calendar */
+.jalali-calendar-grid {
+  direction: rtl;
+}
+
+/* Number inputs always LTR */
+input[type="number"],
+input[type="tel"],
+input[dir="ltr"] {
+  direction: ltr;
+  text-align: start;
 }

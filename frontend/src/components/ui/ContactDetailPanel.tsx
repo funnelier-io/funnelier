@@ -1,8 +1,9 @@
 "use client";
 
 import { useTranslations } from "next-intl";
+import { useFormat } from "@/lib/use-format";
 import { useApi } from "@/lib/hooks";
-import { fmtNum, fmtDate, fmtCurrency } from "@/lib/utils";
+
 import { STAGE_LABELS, STAGE_COLORS, SEGMENT_LABELS } from "@/lib/constants";
 import type { Contact } from "@/types/leads";
 
@@ -65,6 +66,7 @@ interface TimelineResponse {
 
 export default function ContactDetailPanel({ contact, onClose }: ContactDetailPanelProps) {
   const t = useTranslations("contactDetail");
+  const fmt = useFormat();
   const tc = useTranslations("common");
 
   const stageLabel = STAGE_LABELS[contact.current_stage] || contact.current_stage;
@@ -144,7 +146,7 @@ export default function ContactDetailPanel({ contact, onClose }: ContactDetailPa
             />
             <span className="text-sm font-medium">{stageLabel}</span>
             <span className="text-xs text-gray-400">
-              {t("since", { date: fmtDate(contact.stage_entered_at) })}
+              {t("since", { date: fmt.date(contact.stage_entered_at) })}
             </span>
           </div>
 
@@ -153,15 +155,15 @@ export default function ContactDetailPanel({ contact, onClose }: ContactDetailPa
             <h3 className="text-xs font-semibold text-gray-500 mb-3">{t("engagementStats")}</h3>
             <div className="grid grid-cols-2 gap-3">
               <div className="text-center">
-                <div className="text-lg font-bold text-blue-600">{fmtNum(contact.total_calls)}</div>
+                <div className="text-lg font-bold text-blue-600">{fmt.number(contact.total_calls)}</div>
                 <div className="text-xs text-gray-400">{t("calls")}</div>
               </div>
               <div className="text-center">
-                <div className="text-lg font-bold text-green-600">{fmtNum(contact.total_answered_calls)}</div>
+                <div className="text-lg font-bold text-green-600">{fmt.number(contact.total_answered_calls)}</div>
                 <div className="text-xs text-gray-400">{t("answered")}</div>
               </div>
               <div className="text-center">
-                <div className="text-lg font-bold text-purple-600">{fmtNum(contact.total_sms_sent)}</div>
+                <div className="text-lg font-bold text-purple-600">{fmt.number(contact.total_sms_sent)}</div>
                 <div className="text-xs text-gray-400">{t("sms")}</div>
               </div>
               <div className="text-center">
@@ -176,15 +178,15 @@ export default function ContactDetailPanel({ contact, onClose }: ContactDetailPa
             <h3 className="text-xs font-semibold text-gray-500 mb-3">{t("salesStats")}</h3>
             <div className="grid grid-cols-2 gap-3">
               <div className="text-center">
-                <div className="text-lg font-bold text-emerald-600">{fmtNum(contact.total_invoices)}</div>
+                <div className="text-lg font-bold text-emerald-600">{fmt.number(contact.total_invoices)}</div>
                 <div className="text-xs text-gray-400">{t("invoices")}</div>
               </div>
               <div className="text-center">
-                <div className="text-lg font-bold text-green-600">{fmtNum(contact.total_paid_invoices)}</div>
+                <div className="text-lg font-bold text-green-600">{fmt.number(contact.total_paid_invoices)}</div>
                 <div className="text-xs text-gray-400">{t("paid")}</div>
               </div>
               <div className="col-span-2 text-center pt-1">
-                <div className="text-lg font-bold text-amber-600">{fmtCurrency(contact.total_revenue)}</div>
+                <div className="text-lg font-bold text-amber-600">{fmt.currency(contact.total_revenue)}</div>
                 <div className="text-xs text-gray-400">{t("totalRevenue")}</div>
               </div>
             </div>
@@ -231,7 +233,7 @@ export default function ContactDetailPanel({ contact, onClose }: ContactDetailPa
                         <div className="text-gray-500 mt-0.5 truncate">{ev.message}</div>
                       )}
                       {ev.timestamp && (
-                        <div className="text-gray-300 mt-0.5">{fmtDate(ev.timestamp)}</div>
+                        <div className="text-gray-300 mt-0.5">{fmt.date(ev.timestamp)}</div>
                       )}
                     </div>
                   </div>
@@ -250,9 +252,9 @@ export default function ContactDetailPanel({ contact, onClose }: ContactDetailPa
             <InfoRow label={t("email")} value={contact.email} />
             <InfoRow label={t("category")} value={contact.category_name} />
             <InfoRow label={t("source")} value={contact.source_name} />
-            <InfoRow label={t("createdAt")} value={fmtDate(contact.created_at)} />
-            <InfoRow label={t("lastPurchase")} value={fmtDate(contact.last_purchase_at)} />
-            <InfoRow label={t("firstPurchase")} value={fmtDate(contact.first_purchase_at)} />
+            <InfoRow label={t("createdAt")} value={fmt.date(contact.created_at)} />
+            <InfoRow label={t("lastPurchase")} value={fmt.date(contact.last_purchase_at)} />
+            <InfoRow label={t("firstPurchase")} value={fmt.date(contact.first_purchase_at)} />
           </div>
 
           {/* Tags */}

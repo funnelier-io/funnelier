@@ -12,6 +12,7 @@
     "test:e2e:report": "playwright show-report"
   },
   "dependencies": {
+    "jalaali-js": "^1.2.8",
     "next": "16.1.6",
     "next-intl": "^4.9.0",
     "react": "19.2.3",

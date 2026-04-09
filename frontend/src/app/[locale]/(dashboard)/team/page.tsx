@@ -1,14 +1,16 @@
 "use client";
 
 import { useTranslations } from "next-intl";
+import { useFormat } from "@/lib/use-format";
 import { useApi } from "@/lib/hooks";
 import StatCard from "@/components/ui/StatCard";
 import DataTable from "@/components/ui/DataTable";
-import { fmtNum, fmtPercent, fmtCurrency } from "@/lib/utils";
+
 import type { TeamPerformance, SalespersonPerformance } from "@/types/team";
 
 export default function TeamPage() {
   const t = useTranslations("team");
+  const fmt = useFormat();
   const team = useApi<TeamPerformance>("/team/performance");
 
   const columns = [
@@ -22,7 +24,7 @@ export default function TeamPage() {
     {
       key: "total_calls",
       header: t("colCalls"),
-      render: (s: SalespersonPerformance) => fmtNum(s.metrics.total_calls),
+      render: (s: SalespersonPerformance) => fmt.number(s.metrics.total_calls),
     },
     {
       key: "answer_rate",
@@ -35,7 +37,7 @@ export default function TeamPage() {
               style={{ width: `${Math.min(s.metrics.answer_rate * 100, 100)}%` }}
             />
           </div>
-          <span className="text-xs">{fmtPercent(s.metrics.answer_rate)}</span>
+          <span className="text-xs">{fmt.percent(s.metrics.answer_rate)}</span>
         </div>
       ),
     },
@@ -50,33 +52,33 @@ export default function TeamPage() {
               style={{ width: `${Math.min(s.metrics.success_rate * 100, 100)}%` }}
             />
           </div>
-          <span className="text-xs">{fmtPercent(s.metrics.success_rate)}</span>
+          <span className="text-xs">{fmt.percent(s.metrics.success_rate)}</span>
         </div>
       ),
     },
     {
       key: "assigned_leads",
       header: t("colLeads"),
-      render: (s: SalespersonPerformance) => fmtNum(s.metrics.assigned_leads),
+      render: (s: SalespersonPerformance) => fmt.number(s.metrics.assigned_leads),
     },
     {
       key: "contact_rate",
       header: t("colContactRate"),
-      render: (s: SalespersonPerformance) => fmtPercent(s.metrics.contact_rate),
+      render: (s: SalespersonPerformance) => fmt.percent(s.metrics.contact_rate),
     },
     {
       key: "conversion_rate",
       header: t("colConversionRate"),
       render: (s: SalespersonPerformance) => (
         <span className={s.metrics.conversion_rate > 0 ? "text-green-600 font-semibold" : ""}>
-          {fmtPercent(s.metrics.conversion_rate)}
+          {fmt.percent(s.metrics.conversion_rate)}
         </span>
       ),
     },
     {
       key: "total_revenue",
       header: t("colRevenue"),
-      render: (s: SalespersonPerformance) => fmtCurrency(s.metrics.total_revenue),
+      render: (s: SalespersonPerformance) => fmt.currency(s.metrics.total_revenue),
     },
     {
       key: "rank",
@@ -85,7 +87,7 @@ export default function TeamPage() {
         const rank = s.rank_by_revenue || s.rank_by_conversions || s.rank_by_calls;
         if (!rank) return "—";
         const medals = ["🥇", "🥈", "🥉"];
-        return rank <= 3 ? medals[rank - 1] : fmtNum(rank);
+        return rank <= 3 ? medals[rank - 1] : fmt.number(rank);
       },
     },
   ];
@@ -99,31 +101,31 @@ export default function TeamPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard
             title={t("totalCalls")}
-            value={fmtNum(team.data.total_metrics.total_calls)}
+            value={fmt.number(team.data.total_metrics.total_calls)}
             icon="📞"
             color="text-blue-600"
-            subtitle={t("answered", { count: fmtNum(team.data.total_metrics.answered_calls) })}
+            subtitle={t("answered", { count: fmt.number(team.data.total_metrics.answered_calls) })}
           />
           <StatCard
             title={t("answerRate")}
-            value={fmtPercent(team.data.total_metrics.answer_rate)}
+            value={fmt.percent(team.data.total_metrics.answer_rate)}
             icon="📈"
             color="text-green-600"
-            subtitle={t("successful", { rate: fmtPercent(team.data.total_metrics.success_rate) })}
+            subtitle={t("successful", { rate: fmt.percent(team.data.total_metrics.success_rate) })}
           />
           <StatCard
             title={t("totalRevenue")}
-            value={fmtCurrency(team.data.total_metrics.total_revenue)}
+            value={fmt.currency(team.data.total_metrics.total_revenue)}
             icon="💰"
             color="text-amber-600"
-            subtitle={t("avgDeal", { amount: fmtCurrency(team.data.total_metrics.average_deal_size) })}
+            subtitle={t("avgDeal", { amount: fmt.currency(team.data.total_metrics.average_deal_size) })}
           />
           <StatCard
             title={t("conversionRate")}
-            value={fmtPercent(team.data.total_metrics.conversion_rate)}
+            value={fmt.percent(team.data.total_metrics.conversion_rate)}
             icon="🎯"
             color="text-purple-600"
-            subtitle={t("invoicesPaid", { invoices: fmtNum(team.data.total_metrics.invoices_created), paid: fmtNum(team.data.total_metrics.invoices_paid) })}
+            subtitle={t("invoicesPaid", { invoices: fmt.number(team.data.total_metrics.invoices_created), paid: fmt.number(team.data.total_metrics.invoices_paid) })}
           />
         </div>
       )}

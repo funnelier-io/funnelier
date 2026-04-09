@@ -2,11 +2,12 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
+import { useFormat } from "@/lib/use-format";
 import { useApi, useDebounce } from "@/lib/hooks";
 import StatCard from "@/components/ui/StatCard";
 import DataTable from "@/components/ui/DataTable";
 import ContactDetailPanel from "@/components/ui/ContactDetailPanel";
-import { fmtNum, fmtDate, fmtPercent } from "@/lib/utils";
+
 import { STAGE_LABELS, SEGMENT_LABELS } from "@/lib/constants";
 import type { ContactListResponse, LeadStatsSummary, Contact } from "@/types/leads";
 
@@ -36,6 +37,7 @@ const SEGMENT_BADGE_COLORS: Record<string, string> = {
 
 export default function LeadsPage() {
   const t = useTranslations("leads");
+  const fmt = useFormat();
   const tc = useTranslations("common");
   const tStages = useTranslations("stages");
   const tSegments = useTranslations("rfmSegments");
@@ -116,10 +118,10 @@ export default function LeadsPage() {
       header: t("columns.calls"),
       render: (c: Contact) => (
         <div className="text-center">
-          <span className="text-sm">{fmtNum(c.total_calls)}</span>
+          <span className="text-sm">{fmt.number(c.total_calls)}</span>
           {c.total_answered_calls > 0 && (
             <span className="text-xs text-green-600 block">
-              {fmtNum(c.total_answered_calls)} {t("answered")}
+              {fmt.number(c.total_answered_calls)} {t("answered")}
             </span>
           )}
         </div>
@@ -128,14 +130,14 @@ export default function LeadsPage() {
     {
       key: "total_sms_sent",
       header: t("columns.sms"),
-      render: (c: Contact) => fmtNum(c.total_sms_sent),
+      render: (c: Contact) => fmt.number(c.total_sms_sent),
     },
     {
       key: "total_revenue",
       header: t("columns.revenue"),
       render: (c: Contact) => c.total_revenue > 0 ? (
         <span className="text-green-600 text-xs font-medium">
-          {fmtNum(Math.round(c.total_revenue / 10_000_000))}M
+          {fmt.number(Math.round(c.total_revenue / 10_000_000))}M
         </span>
       ) : (
         <span className="text-gray-300 text-xs">—</span>
@@ -144,7 +146,7 @@ export default function LeadsPage() {
     {
       key: "created_at",
       header: t("columns.date"),
-      render: (c: Contact) => fmtDate(c.created_at),
+      render: (c: Contact) => fmt.date(c.created_at),
     },
   ];
 
@@ -157,31 +159,31 @@ export default function LeadsPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard
             title={t("totalContacts")}
-            value={fmtNum(stats.data.total_contacts)}
+            value={fmt.number(stats.data.total_contacts)}
             icon="📋"
             color="text-blue-600"
           />
           <StatCard
             title={t("callsMade")}
-            value={fmtNum(
+            value={fmt.number(
               (stats.data.by_stage?.call_attempted || 0) +
                 (stats.data.by_stage?.call_answered || 0)
             )}
             icon="📞"
             color="text-amber-600"
-            subtitle={`${fmtPercent(
+            subtitle={`${fmt.percent(
               ((stats.data.by_stage?.call_attempted || 0) + (stats.data.by_stage?.call_answered || 0)) / Math.max(stats.data.total_contacts, 1)
             )} ${t("ofTotal")}`}
           />
           <StatCard
             title={t("segmentsCount")}
-            value={fmtNum(Object.keys(stats.data.by_segment || {}).length)}
+            value={fmt.number(Object.keys(stats.data.by_segment || {}).length)}
             icon="🎯"
             color="text-green-600"
           />
           <StatCard
             title={t("categoriesCount")}
-            value={fmtNum(Object.keys(stats.data.by_category || {}).length)}
+            value={fmt.number(Object.keys(stats.data.by_category || {}).length)}
             icon="🏷️"
             color="text-purple-600"
           />
@@ -202,7 +204,7 @@ export default function LeadsPage() {
             <option value="all">{t("allStages")}</option>
             {stages.map(([stage, count]) => (
               <option key={stage} value={stage}>
-                {STAGE_LABELS[stage] || stage} ({fmtNum(count)})
+                {STAGE_LABELS[stage] || stage} ({fmt.number(count)})
               </option>
             ))}
           </select>
@@ -216,7 +218,7 @@ export default function LeadsPage() {
             <option value="all">{t("allSegments")}</option>
             {segments.map(([seg, count]) => (
               <option key={seg} value={seg}>
-                {SEGMENT_LABELS[seg] || seg} ({fmtNum(count)})
+                {SEGMENT_LABELS[seg] || seg} ({fmt.number(count)})
               </option>
             ))}
           </select>
@@ -260,7 +262,7 @@ export default function LeadsPage() {
               </button>
             )}
             <span className="text-xs text-gray-400 mr-2">
-              {contacts.data ? fmtNum(contacts.data.total_count) : "..."} {tc("results", { count: "" }).trim()}
+              {contacts.data ? fmt.number(contacts.data.total_count) : "..."} {tc("results", { count: "" }).trim()}
             </span>
           </div>
         )}
@@ -284,7 +286,7 @@ export default function LeadsPage() {
               {tc("previous")}
             </button>
             <span className="text-sm text-gray-500">
-              {tc("page", { current: fmtNum(page), total: fmtNum(totalPages) })}
+              {tc("page", { current: fmt.number(page), total: fmt.number(totalPages) })}
             </span>
             <button
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}

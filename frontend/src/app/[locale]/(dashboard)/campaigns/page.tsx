@@ -2,11 +2,12 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
+import { useFormat } from "@/lib/use-format";
 import { useApi } from "@/lib/hooks";
 import { apiPost } from "@/lib/api-client";
 import StatCard from "@/components/ui/StatCard";
 import DataTable from "@/components/ui/DataTable";
-import { fmtNum, fmtDate } from "@/lib/utils";
+
 import {
   CAMPAIGN_STATUS_LABELS,
   CAMPAIGN_TYPE_LABELS,
@@ -29,6 +30,7 @@ const STATUS_COLORS: Record<string, string> = {
 
 export default function CampaignsPage() {
   const t = useTranslations("campaigns");
+  const fmt = useFormat();
   const tc = useTranslations("common");
   const tcs = useTranslations("campaignStatuses");
   const tct = useTranslations("campaignTypes");
@@ -126,7 +128,7 @@ export default function CampaignsPage() {
       key: "recipients",
       header: t("columns.recipients"),
       render: (c: Campaign) => (
-        <span className="text-sm">{fmtNum(c.total_recipients)}</span>
+        <span className="text-sm">{fmt.number(c.total_recipients)}</span>
       ),
     },
     {
@@ -134,7 +136,7 @@ export default function CampaignsPage() {
       header: t("columns.sentDelivered"),
       render: (c: Campaign) => (
         <span className="text-xs text-gray-600">
-          {fmtNum(c.sent_count)} / {fmtNum(c.delivered_count)}
+          {fmt.number(c.sent_count)} / {fmt.number(c.delivered_count)}
         </span>
       ),
     },
@@ -143,7 +145,7 @@ export default function CampaignsPage() {
       header: t("columns.conversions"),
       render: (c: Campaign) => (
         <span className="text-sm font-medium text-green-600">
-          {fmtNum(c.conversion_count)}
+          {fmt.number(c.conversion_count)}
         </span>
       ),
     },
@@ -151,7 +153,7 @@ export default function CampaignsPage() {
       key: "created_at",
       header: t("columns.date"),
       render: (c: Campaign) => (
-        <span className="text-xs text-gray-500">{fmtDate(c.created_at)}</span>
+        <span className="text-xs text-gray-500">{fmt.date(c.created_at)}</span>
       ),
     },
     {
@@ -202,10 +204,10 @@ export default function CampaignsPage() {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard title={t("totalCampaigns")} value={fmtNum(totalCount)} icon="📣" color="text-blue-600" />
-        <StatCard title={t("running")} value={fmtNum(runningCount)} icon="▶️" color="text-green-600" />
-        <StatCard title={t("completed")} value={fmtNum(completedCount)} icon="✅" color="text-emerald-600" />
-        <StatCard title={t("drafts")} value={fmtNum(draftCount)} icon="📝" color="text-gray-600" />
+        <StatCard title={t("totalCampaigns")} value={fmt.number(totalCount)} icon="📣" color="text-blue-600" />
+        <StatCard title={t("running")} value={fmt.number(runningCount)} icon="▶️" color="text-green-600" />
+        <StatCard title={t("completed")} value={fmt.number(completedCount)} icon="✅" color="text-emerald-600" />
+        <StatCard title={t("drafts")} value={fmt.number(draftCount)} icon="📝" color="text-gray-600" />
       </div>
 
       {/* Create Campaign Form */}
@@ -368,7 +370,7 @@ export default function CampaignsPage() {
               {tc("previous")}
             </button>
             <span className="text-xs text-gray-500">
-              {tc("page", { current: fmtNum(page), total: fmtNum(totalPages) })}
+              {tc("page", { current: fmt.number(page), total: fmt.number(totalPages) })}
             </span>
             <button
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}

@@ -2,12 +2,13 @@
 
 import { useState, useCallback } from "react";
 import { useTranslations } from "next-intl";
+import { useFormat } from "@/lib/use-format";
 import { useApi } from "@/lib/hooks";
 import { apiPost, apiDelete } from "@/lib/api-client";
 import { API_BASE } from "@/lib/constants";
 import StatCard from "@/components/ui/StatCard";
 import EmptyState from "@/components/ui/EmptyState";
-import { fmtDate, toPersianNum } from "@/lib/utils";
+
 import type {
   ExportFormat,
   ReportType,
@@ -102,6 +103,7 @@ async function downloadPost(path: string, body: unknown, fallbackName: string) {
 
 export default function ReportsPage() {
   const t = useTranslations("reports");
+  const fmt = useFormat();
   const tc = useTranslations("common");
 
   const [tab, setTab] = useState<"quick" | "summary" | "custom" | "scheduled">("quick");
@@ -293,19 +295,19 @@ export default function ReportsPage() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <StatCard
           title={t("kpiDataExports")}
-          value={toPersianNum(QUICK_EXPORTS.length)}
+          value={fmt.digits(QUICK_EXPORTS.length)}
           icon="📥"
           color="text-blue-600"
         />
         <StatCard
           title={t("kpiSummaryReports")}
-          value={toPersianNum(SUMMARY_REPORTS.length)}
+          value={fmt.digits(SUMMARY_REPORTS.length)}
           icon="📈"
           color="text-emerald-600"
         />
         <StatCard
           title={t("kpiScheduledReports")}
-          value={toPersianNum(scheduleList.length)}
+          value={fmt.digits(scheduleList.length)}
           icon="🕐"
           color="text-purple-600"
         />
@@ -706,7 +708,7 @@ export default function ReportsPage() {
                         {sched.recipients.join(", ") || "—"}
                       </td>
                       <td className="px-4 py-3 text-gray-500 text-xs">
-                        {sched.next_run_at ? fmtDate(sched.next_run_at) : "—"}
+                        {sched.next_run_at ? fmt.date(sched.next_run_at) : "—"}
                       </td>
                       <td className="px-4 py-3">
                         <span

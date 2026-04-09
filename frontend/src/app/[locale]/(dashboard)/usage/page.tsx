@@ -1,9 +1,10 @@
 "use client";
 
 import { useTranslations } from "next-intl";
+import { useFormat } from "@/lib/use-format";
 import { useApi } from "@/lib/hooks";
 import StatCard from "@/components/ui/StatCard";
-import { fmtNum, fmtPercentRaw, fmtCurrency, cn } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
 interface UsageData {
   tenant_id: string;
@@ -52,6 +53,7 @@ interface PlansResponse {
 
 export default function UsagePage() {
   const t = useTranslations("usage");
+  const fmt = useFormat();
   const tc = useTranslations("common");
 
   const usage = useApi<UsageData>("/tenants/me/usage/detailed");
@@ -87,29 +89,29 @@ export default function UsagePage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           title={t("contacts")}
-          value={`${fmtNum(data?.contacts_count || 0)} / ${fmtNum(data?.contacts_limit || 0)}`}
-          subtitle={fmtPercentRaw(data?.contacts_percent || 0)}
+          value={`${fmt.number(data?.contacts_count || 0)} / ${fmt.number(data?.contacts_limit || 0)}`}
+          subtitle={fmt.percentRaw(data?.contacts_percent || 0)}
           icon="👥"
           color="text-blue-600"
         />
         <StatCard
           title={t("smsSent")}
-          value={`${fmtNum(data?.sms_sent || 0)} / ${fmtNum(data?.sms_limit || 0)}`}
-          subtitle={fmtPercentRaw(data?.sms_percent || 0)}
+          value={`${fmt.number(data?.sms_sent || 0)} / ${fmt.number(data?.sms_limit || 0)}`}
+          subtitle={fmt.percentRaw(data?.sms_percent || 0)}
           icon="💬"
           color="text-green-600"
         />
         <StatCard
           title={t("apiCalls")}
-          value={`${fmtNum(data?.api_calls_today || 0)} / ${fmtNum(data?.api_calls_limit || 0)}`}
+          value={`${fmt.number(data?.api_calls_today || 0)} / ${fmt.number(data?.api_calls_limit || 0)}`}
           subtitle={t("today")}
           icon="🔌"
           color="text-purple-600"
         />
         <StatCard
           title={t("users")}
-          value={`${fmtNum(data?.users_count || 0)} / ${fmtNum(data?.users_limit || 0)}`}
-          subtitle={fmtPercentRaw(data?.users_percent || 0)}
+          value={`${fmt.number(data?.users_count || 0)} / ${fmt.number(data?.users_limit || 0)}`}
+          subtitle={fmt.percentRaw(data?.users_percent || 0)}
           icon="👤"
           color="text-amber-600"
         />
@@ -169,7 +171,7 @@ export default function UsagePage() {
                   <span className="text-2xl font-bold text-gray-900">
                     {plan.price_monthly === 0
                       ? t("free")
-                      : fmtCurrency(plan.price_monthly)}
+                      : fmt.currency(plan.price_monthly)}
                   </span>
                   {plan.price_monthly > 0 && (
                     <span className="text-xs text-gray-400"> / {t("perMonth")}</span>
@@ -177,11 +179,11 @@ export default function UsagePage() {
                 </div>
 
                 <div className="space-y-1 text-xs text-gray-600 pt-2 border-t">
-                  <div>👥 {fmtNum(plan.limits.max_contacts)} {t("contacts")}</div>
-                  <div>💬 {fmtNum(plan.limits.max_sms_per_month)} {t("smsPerMonth")}</div>
-                  <div>👤 {fmtNum(plan.limits.max_users)} {t("users")}</div>
-                  <div>🔌 {fmtNum(plan.limits.max_api_calls_per_day)} {t("apiPerDay")}</div>
-                  <div>📦 {fmtNum(plan.limits.max_data_sources)} {t("dataSources")}</div>
+                  <div>👥 {fmt.number(plan.limits.max_contacts)} {t("contacts")}</div>
+                  <div>💬 {fmt.number(plan.limits.max_sms_per_month)} {t("smsPerMonth")}</div>
+                  <div>👤 {fmt.number(plan.limits.max_users)} {t("users")}</div>
+                  <div>🔌 {fmt.number(plan.limits.max_api_calls_per_day)} {t("apiPerDay")}</div>
+                  <div>📦 {fmt.number(plan.limits.max_data_sources)} {t("dataSources")}</div>
                 </div>
 
                 <div className="text-xs text-gray-500 pt-2">
@@ -197,13 +199,14 @@ export default function UsagePage() {
 }
 
 function UsageBar({ label, current, limit, percent }: { label: string; current: number; limit: number; percent: number }) {
+  const fmt = useFormat();
   const barColor = percent >= 90 ? "bg-red-500" : percent >= 70 ? "bg-amber-500" : "bg-blue-500";
 
   return (
     <div>
       <div className="flex justify-between text-sm mb-1">
         <span className="text-gray-600">{label}</span>
-        <span className="text-gray-400">{fmtNum(current)} / {fmtNum(limit)}</span>
+        <span className="text-gray-400">{fmt.number(current)} / {fmt.number(limit)}</span>
       </div>
       <div className="w-full bg-gray-200 rounded-full h-2.5">
         <div

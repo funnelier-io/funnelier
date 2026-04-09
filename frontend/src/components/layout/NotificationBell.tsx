@@ -2,8 +2,8 @@
 
 import { useEffect, useRef } from "react";
 import { useTranslations } from "next-intl";
+import { useFormat } from "@/lib/use-format";
 import { useNotificationStore } from "@/stores/notification-store";
-import { fmtNum } from "@/lib/utils";
 
 const SEVERITY_ICON: Record<string, string> = {
   info: "ℹ️",
@@ -38,6 +38,7 @@ function timeAgo(dateStr: string): string {
 
 export default function NotificationBell() {
   const t = useTranslations("notifications");
+  const fmt = useFormat();
   const {
     notifications,
     unreadCount,
@@ -95,7 +96,7 @@ export default function NotificationBell() {
         </svg>
         {unreadCount > 0 && (
           <span className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1 animate-pulse">
-            {unreadCount > 99 ? "99+" : fmtNum(unreadCount)}
+            {unreadCount > 99 ? "99+" : fmt.number(unreadCount)}
           </span>
         )}
       </button>
@@ -109,7 +110,7 @@ export default function NotificationBell() {
               {t("title")}
               {unreadCount > 0 && (
                 <span className="mr-2 text-xs bg-red-100 text-red-600 rounded-full px-2 py-0.5">
-                  {fmtNum(unreadCount)}
+                  {fmt.number(unreadCount)}
                 </span>
               )}
             </h3>

@@ -2,10 +2,11 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
+import { useFormat } from "@/lib/use-format";
 import { useApi } from "@/lib/hooks";
 import StatCard from "@/components/ui/StatCard";
 import DataTable from "@/components/ui/DataTable";
-import { fmtNum, fmtDate, fmtCurrency } from "@/lib/utils";
+
 import { INVOICE_STATUS_LABELS, INVOICE_STATUS_COLORS } from "@/lib/constants";
 import type {
   Invoice,
@@ -19,6 +20,7 @@ import type {
 
 export default function SalesPage() {
   const t = useTranslations("sales");
+  const fmt = useFormat();
   const tc = useTranslations("common");
   const tis = useTranslations("invoiceStatuses");
   const [tab, setTab] = useState<"invoices" | "products" | "payments">(
@@ -79,7 +81,7 @@ export default function SalesPage() {
       header: t("columns.totalAmount"),
       render: (inv: Invoice) => (
         <span className="text-sm font-semibold text-gray-800">
-          {fmtCurrency(inv.total_amount)}
+          {fmt.currency(inv.total_amount)}
         </span>
       ),
     },
@@ -89,7 +91,7 @@ export default function SalesPage() {
       render: (inv: Invoice) =>
         inv.amount_paid > 0 ? (
           <span className="text-sm text-green-600 font-medium">
-            {fmtCurrency(inv.amount_paid)}
+            {fmt.currency(inv.amount_paid)}
           </span>
         ) : (
           <span className="text-gray-300 text-xs">—</span>
@@ -122,7 +124,7 @@ export default function SalesPage() {
       header: t("columns.issuedDate"),
       render: (inv: Invoice) => (
         <span className="text-xs text-gray-500">
-          {fmtDate(inv.issued_at || inv.created_at)}
+          {fmt.date(inv.issued_at || inv.created_at)}
         </span>
       ),
     },
@@ -158,7 +160,7 @@ export default function SalesPage() {
       header: t("columns.currentPrice"),
       render: (p: Product) => (
         <span className="text-sm font-semibold text-gray-800">
-          {fmtCurrency(p.current_price)}
+          {fmt.currency(p.current_price)}
         </span>
       ),
     },
@@ -167,7 +169,7 @@ export default function SalesPage() {
       header: t("columns.basePrice"),
       render: (p: Product) => (
         <span className="text-xs text-gray-400">
-          {fmtCurrency(p.base_price)}
+          {fmt.currency(p.base_price)}
         </span>
       ),
     },
@@ -230,7 +232,7 @@ export default function SalesPage() {
       header: t("columns.amount"),
       render: (p: Payment) => (
         <span className="text-sm font-semibold text-green-600">
-          {fmtCurrency(p.amount)}
+          {fmt.currency(p.amount)}
         </span>
       ),
     },
@@ -257,7 +259,7 @@ export default function SalesPage() {
       header: t("columns.paymentDate"),
       render: (p: Payment) => (
         <span className="text-xs text-gray-500">
-          {fmtDate(p.payment_date)}
+          {fmt.date(p.payment_date)}
         </span>
       ),
     },
@@ -302,7 +304,7 @@ export default function SalesPage() {
           {tc("previous")}
         </button>
         <span className="text-sm text-gray-500">
-          {tc("page", { current: fmtNum(page), total: fmtNum(totalPages) })}
+          {tc("page", { current: fmt.number(page), total: fmt.number(totalPages) })}
         </span>
         <button
           onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
@@ -323,25 +325,25 @@ export default function SalesPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           title={t("totalInvoices")}
-          value={fmtNum(stats.data?.total_invoices)}
+          value={fmt.number(stats.data?.total_invoices)}
           icon="🧾"
           color="text-blue-600"
         />
         <StatCard
           title={t("totalRevenue")}
-          value={fmtCurrency(stats.data?.total_revenue)}
+          value={fmt.currency(stats.data?.total_revenue)}
           icon="💰"
           color="text-green-600"
         />
         <StatCard
           title={t("paidCount")}
-          value={fmtNum(stats.data?.total_paid)}
+          value={fmt.number(stats.data?.total_paid)}
           icon="✅"
           color="text-emerald-600"
         />
         <StatCard
           title={t("avgOrderValue")}
-          value={fmtCurrency(stats.data?.average_order_value)}
+          value={fmt.currency(stats.data?.average_order_value)}
           icon="📊"
           color="text-purple-600"
           subtitle={
@@ -365,7 +367,7 @@ export default function SalesPage() {
           {t("invoicesTab")}
           {invoices.data && (
             <span className="text-xs text-gray-400 mr-1">
-              ({fmtNum(invoices.data.total_count)})
+              ({fmt.number(invoices.data.total_count)})
             </span>
           )}
         </button>
@@ -380,7 +382,7 @@ export default function SalesPage() {
           {t("productsTab")}
           {products.data && (
             <span className="text-xs text-gray-400 mr-1">
-              ({fmtNum(products.data.total_count)})
+              ({fmt.number(products.data.total_count)})
             </span>
           )}
         </button>
@@ -395,7 +397,7 @@ export default function SalesPage() {
           {t("paymentsTab")}
           {payments.data && (
             <span className="text-xs text-gray-400 mr-1">
-              ({fmtNum(payments.data.total_count)})
+              ({fmt.number(payments.data.total_count)})
             </span>
           )}
         </button>
@@ -430,13 +432,13 @@ export default function SalesPage() {
               <span>
                 {t("totalAmounts")}{" "}
                 <span className="font-semibold text-gray-700">
-                  {fmtCurrency(invoices.data.total_amount)}
+                  {fmt.currency(invoices.data.total_amount)}
                 </span>
               </span>
               <span>
                 {t("totalPaid")}{" "}
                 <span className="font-semibold text-green-600">
-                  {fmtCurrency(invoices.data.total_paid)}
+                  {fmt.currency(invoices.data.total_paid)}
                 </span>
               </span>
             </div>
@@ -484,7 +486,7 @@ export default function SalesPage() {
                     className="bg-white rounded-lg shadow p-3 text-center"
                   >
                     <div className="text-lg font-bold text-purple-600">
-                      {fmtNum(count)}
+                      {fmt.number(count)}
                     </div>
                     <div className="text-xs text-gray-500 truncate">{cat}</div>
                   </div>
@@ -514,10 +516,10 @@ export default function SalesPage() {
               <span className="text-2xl">💳</span>
               <div>
                 <div className="text-sm text-green-800 font-semibold">
-                  {t("totalPayments", { amount: fmtCurrency(payments.data.total_amount) })}
+                  {t("totalPayments", { amount: fmt.currency(payments.data.total_amount) })}
                 </div>
                 <div className="text-xs text-green-600">
-                  {t("transactionsRegistered", { count: fmtNum(payments.data.total_count) })}
+                  {t("transactionsRegistered", { count: fmt.number(payments.data.total_count) })}
                 </div>
               </div>
             </div>

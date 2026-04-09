@@ -1031,6 +1031,50 @@
     "feature_multi_region": "Multi-region",
     "feature_audit_log": "Audit Log",
     "feature_sso": "Single Sign-On (SSO)"
+  },
+  "calendar": {
+    "today": "Today",
+    "months": {
+      "1": "January",
+      "2": "February",
+      "3": "March",
+      "4": "April",
+      "5": "May",
+      "6": "June",
+      "7": "July",
+      "8": "August",
+      "9": "September",
+      "10": "October",
+      "11": "November",
+      "12": "December"
+    },
+    "weekdays": {
+      "0": "Su",
+      "1": "Mo",
+      "2": "Tu",
+      "3": "We",
+      "4": "Th",
+      "5": "Fr",
+      "6": "Sa"
+    },
+    "relativeTime": {
+      "now": "just now",
+      "ago": "ago",
+      "inFuture": "from now",
+      "days": "days",
+      "hours": "hours",
+      "minutes": "minutes"
+    }
+  },
+  "format": {
+    "dateFormat": "gregorian",
+    "numberStyle": "latin",
+    "currencyUnit": "Toman",
+    "currencyMillionUnit": "M Toman",
+    "currencyBillionUnit": "B Toman",
+    "percentSymbol": "%",
+    "durationMinutes": "min",
+    "durationSeconds": "sec"
   }
 }
 

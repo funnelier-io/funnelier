@@ -2,10 +2,12 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
+import { useFormat } from "@/lib/use-format";
+import { formatNumber, formatDuration as fmtDurLocale } from "@/lib/format";
 import { useApi, useDebounce } from "@/lib/hooks";
 import StatCard from "@/components/ui/StatCard";
 import DataTable from "@/components/ui/DataTable";
-import { fmtNum, fmtPercent, fmtDate } from "@/lib/utils";
+
 import type {
   SMSStats, SMSBalance, CallStats, SMSLogListResponse, SMSLog, CallLogListResponse, CallLog,
 } from "@/types/communications";
@@ -17,14 +19,15 @@ function fmtDuration(seconds: number): string {
   return m > 0 ? `${m}:${String(s).padStart(2, "0")}` : `${s}s`;
 }
 
-function fmtCost(cost: number, unit: string): string {
+function fmtCost(cost: number, unit: string, locale: string): string {
   if (!cost) return "\u2014";
-  return `${fmtNum(cost)} ${unit}`;
+  return `${formatNumber(cost, locale)} ${unit}`;
 }
 
 function SMSBalanceCard({ balance, t, tc }: { balance: SMSBalance | undefined; t: ReturnType<typeof useTranslations>; tc: ReturnType<typeof useTranslations> }) {
+  const fmt = useFormat();
   if (!balance) return null;
-  const balanceStr = balance.balance != null ? fmtNum(Math.round(balance.balance)) : "\u2014";
+  const balanceStr = balance.balance != null ? fmt.number(Math.round(balance.balance)) : "\u2014";
   return (
     <div className={`rounded-lg border p-4 ${balance.is_low ? "border-red-200 bg-red-50" : "border-green-200 bg-green-50"}`}>
       <div className="flex items-center justify-between">
@@ -49,6 +52,7 @@ function SMSBalanceCard({ balance, t, tc }: { balance: SMSBalance | undefined; t
 
 export default function CommunicationsPage() {
   const t = useTranslations("communications");
+  const fmt = useFormat();
   const tc = useTranslations("common");
   const tss = useTranslations("smsStatuses");
   const tct = useTranslations("callTypes");
@@ -104,7 +108,7 @@ export default function CommunicationsPage() {
         : <span className="text-gray-400 text-xs">{t("noAnswer")}</span>,
     },
     { key: "salesperson_name", header: t("columns.salesperson"), render: (c: CallLog) => c.salesperson_name || "\u2014" },
-    { key: "call_time", header: t("columns.date"), render: (c: CallLog) => fmtDate(c.call_time) },
+    { key: "call_time", header: t("columns.date"), render: (c: CallLog) => fmt.date(c.call_time) },
   ];
 
   const smsColumns = [
@@ -124,9 +128,9 @@ export default function CommunicationsPage() {
         </span>
       ),
     },
-    { key: "cost", header: t("columns.cost"), render: (l: SMSLog) => <span className="text-xs text-gray-500" dir="ltr">{l.cost ? fmtCost(l.cost, t("costUnit")) : "\u2014"}</span> },
+    { key: "cost", header: t("columns.cost"), render: (l: SMSLog) => <span className="text-xs text-gray-500" dir="ltr">{l.cost ? fmtCost(l.cost, t("costUnit"), fmt.locale) : "\u2014"}</span> },
     { key: "provider", header: t("columns.provider"), render: (l: SMSLog) => <span className="text-xs">{l.provider || l.provider_name || "\u2014"}</span> },
-    { key: "sent_at", header: t("columns.date"), render: (l: SMSLog) => fmtDate(l.sent_at) },
+    { key: "sent_at", header: t("columns.date"), render: (l: SMSLog) => fmt.date(l.sent_at) },
   ];
 
   function Pagination({ page, totalPages, setPage }: { page: number; totalPages: number; setPage: (fn: (p: number) => number) => void }) {
@@ -134,7 +138,7 @@ export default function CommunicationsPage() {
     return (
       <div className="flex items-center justify-center gap-2 mt-4">
         <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1} className="px-3 py-1 text-sm border rounded-md disabled:opacity-30 hover:bg-gray-50">{tc("previous")}</button>
-        <span className="text-sm text-gray-500">{tc("page", { current: fmtNum(page), total: fmtNum(totalPages) })}</span>
+        <span className="text-sm text-gray-500">{tc("page", { current: fmt.number(page), total: fmt.number(totalPages) })}</span>
         <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page >= totalPages} className="px-3 py-1 text-sm border rounded-md disabled:opacity-30 hover:bg-gray-50">{tc("next")}</button>
       </div>
     );
@@ -148,25 +152,25 @@ export default function CommunicationsPage() {
         <div className="lg:col-span-1">
           <SMSBalanceCard balance={smsBalance.data ?? undefined} t={t} tc={tc} />
         </div>
-        <StatCard title={t("totalCalls")} value={fmtNum(callStats.data?.total_calls)} icon="\U0001f4de" color="text-blue-600" />
-        <StatCard title={t("answeredCalls")} value={fmtNum(callStats.data?.total_answered)} icon="\U0001f4f2" color="text-green-600" />
-        <StatCard title={t("successfulCalls")} value={fmtNum(callStats.data?.total_successful)} icon="\u2705" color="text-emerald-600" />
+        <StatCard title={t("totalCalls")} value={fmt.number(callStats.data?.total_calls)} icon="\U0001f4de" color="text-blue-600" />
+        <StatCard title={t("answeredCalls")} value={fmt.number(callStats.data?.total_answered)} icon="\U0001f4f2" color="text-green-600" />
+        <StatCard title={t("successfulCalls")} value={fmt.number(callStats.data?.total_successful)} icon="\u2705" color="text-emerald-600" />
         <StatCard title={t("totalDuration")} value={callStats.data?.total_duration ? `${Math.floor(callStats.data.total_duration / 3600)} ${tc("time.hours")}` : "\u2014"} icon="\u23f1\ufe0f" color="text-purple-600" subtitle={callStats.data?.average_duration ? t("avgDuration", { seconds: String(Math.round(callStats.data.average_duration)) }) : undefined} />
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard title={t("smsSent")} value={fmtNum(smsStats.data?.total_sent)} icon="\U0001f4ac" color="text-blue-500" />
-        <StatCard title={t("smsDelivered")} value={fmtNum(smsStats.data?.total_delivered)} icon="\u2705" color="text-green-500" />
-        <StatCard title={t("smsFailed")} value={fmtNum(smsStats.data?.total_failed)} icon="\u274c" color="text-red-500" />
-        <StatCard title={t("deliveryRate")} value={fmtPercent(smsStats.data?.delivery_rate)} icon="\U0001f4ca" color="text-purple-500" />
+        <StatCard title={t("smsSent")} value={fmt.number(smsStats.data?.total_sent)} icon="\U0001f4ac" color="text-blue-500" />
+        <StatCard title={t("smsDelivered")} value={fmt.number(smsStats.data?.total_delivered)} icon="\u2705" color="text-green-500" />
+        <StatCard title={t("smsFailed")} value={fmt.number(smsStats.data?.total_failed)} icon="\u274c" color="text-red-500" />
+        <StatCard title={t("deliveryRate")} value={fmt.percent(smsStats.data?.delivery_rate)} icon="\U0001f4ca" color="text-purple-500" />
       </div>
 
       <div className="flex gap-1 bg-gray-100 p-1 rounded-lg w-fit">
         <button onClick={() => setTab("calls")} className={`px-4 py-2 text-sm rounded-md transition-colors ${tab === "calls" ? "bg-white shadow text-blue-700 font-medium" : "text-gray-600 hover:text-gray-800"}`}>
-          {t("callsTab", { count: fmtNum(callStats.data?.total_calls) })}
+          {t("callsTab", { count: fmt.number(callStats.data?.total_calls) })}
         </button>
         <button onClick={() => setTab("sms")} className={`px-4 py-2 text-sm rounded-md transition-colors ${tab === "sms" ? "bg-white shadow text-blue-700 font-medium" : "text-gray-600 hover:text-gray-800"}`}>
-          {t("smsTab", { count: fmtNum(smsStats.data?.total_sent) })}
+          {t("smsTab", { count: fmt.number(smsStats.data?.total_sent) })}
         </button>
       </div>
 

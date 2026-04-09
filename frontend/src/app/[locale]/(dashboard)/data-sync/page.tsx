@@ -2,13 +2,14 @@
 
 import { useState, useCallback } from "react";
 import { useTranslations } from "next-intl";
+import { useFormat } from "@/lib/use-format";
 import { useApi } from "@/lib/hooks";
 import { apiPost, apiPut, apiDelete } from "@/lib/api-client";
 import StatCard from "@/components/ui/StatCard";
 import DataTable from "@/components/ui/DataTable";
 import EmptyState from "@/components/ui/EmptyState";
 import ErrorAlert from "@/components/ui/ErrorAlert";
-import { fmtDate, fmtNum, toPersianNum } from "@/lib/utils";
+
 import type {
   DataSource,
   DataSourceListResponse,
@@ -39,6 +40,7 @@ const SYNC_STATUS_COLORS: Record<string, string> = {
 
 export default function DataSyncPage() {
   const t = useTranslations("dataSync");
+  const fmt = useFormat();
   const tc = useTranslations("common");
 
   const [tab, setTab] = useState<"sources" | "history" | "connectors">("sources");
@@ -196,7 +198,7 @@ export default function DataSyncPage() {
           <span className="text-xs">{s.is_active ? t("active") : t("inactive")}</span>
           {s.sync_enabled && (
             <span className="text-xs bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded">
-              {t("every")} {toPersianNum(s.sync_interval_minutes)} {t("minutes")}
+              {t("every")} {fmt.digits(s.sync_interval_minutes)} {t("minutes")}
             </span>
           )}
         </div>
@@ -209,7 +211,7 @@ export default function DataSyncPage() {
         <div>
           {s.last_sync_at ? (
             <>
-              <span className="text-xs">{fmtDate(s.last_sync_at)}</span>
+              <span className="text-xs">{fmt.date(s.last_sync_at)}</span>
               {s.last_sync_status && (
                 <span className={`block mt-0.5 text-xs px-1.5 py-0.5 rounded-full inline-block ${SYNC_STATUS_COLORS[s.last_sync_status] || "bg-gray-50"}`}>
                   {t(`status${s.last_sync_status.charAt(0).toUpperCase() + s.last_sync_status.slice(1)}` as Parameters<typeof t>[0])}
@@ -226,7 +228,7 @@ export default function DataSyncPage() {
       key: "records",
       header: t("records"),
       render: (s: DataSource) => (
-        <span className="text-sm font-medium">{fmtNum(s.last_sync_records)}</span>
+        <span className="text-sm font-medium">{fmt.number(s.last_sync_records)}</span>
       ),
     },
     {
@@ -313,7 +315,7 @@ export default function DataSyncPage() {
       header: t("colDuration"),
       render: (l: SyncLog) => (
         <span className="text-xs text-gray-500">
-          {l.duration_seconds != null ? `${toPersianNum(l.duration_seconds.toFixed(1))} ${t("seconds")}` : "—"}
+          {l.duration_seconds != null ? `${fmt.digits(l.duration_seconds.toFixed(1))} ${t("seconds")}` : "—"}
         </span>
       ),
     },
@@ -329,7 +331,7 @@ export default function DataSyncPage() {
     {
       key: "started_at",
       header: t("colDate"),
-      render: (l: SyncLog) => <span className="text-xs">{fmtDate(l.started_at)}</span>,
+      render: (l: SyncLog) => <span className="text-xs">{fmt.date(l.started_at)}</span>,
     },
     {
       key: "errors",
@@ -357,12 +359,12 @@ export default function DataSyncPage() {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard title={t("kpiTotalSources")} value={fmtNum(totalSources)} icon="📦" color="text-blue-600" />
-        <StatCard title={t("kpiActiveSources")} value={fmtNum(activeSources)} icon="✅" color="text-green-600" />
-        <StatCard title={t("kpiTotalSynced")} value={fmtNum(totalSynced)} icon="🔄" color="text-purple-600" />
+        <StatCard title={t("kpiTotalSources")} value={fmt.number(totalSources)} icon="📦" color="text-blue-600" />
+        <StatCard title={t("kpiActiveSources")} value={fmt.number(activeSources)} icon="✅" color="text-green-600" />
+        <StatCard title={t("kpiTotalSynced")} value={fmt.number(totalSynced)} icon="🔄" color="text-purple-600" />
         <StatCard
           title={t("kpiLastSync")}
-          value={latestSync?.last_sync_at ? fmtDate(latestSync.last_sync_at) : t("never")}
+          value={latestSync?.last_sync_at ? fmt.date(latestSync.last_sync_at) : t("never")}
           icon="🕐"
           color="text-gray-600"
         />
@@ -716,6 +718,4 @@ function SourceFormModal({
     </div>
   );
 }
-
-
 

@@ -270,6 +270,7 @@ Basic dashboard with:
 28. ✅ **Phase 28** - Multi-tenant Billing & Usage Metering (plans, feature gating, usage enforcement)
 29. ✅ **Phase 29** - Structured Logging & Monitoring (structlog, request logging, Prometheus metrics)
 30. ✅ **Phase 30** - Performance & Load Testing (Locust, benchmarks, DB indexes, Redis/DB pool tuning)
+31. ✅ **Phase 31** - Multilingual Deep Dive (Jalali calendar, locale-aware formatting, useFormat hook)
 
 ## Phase 6 Details: Background Tasks & Real-time
 
@@ -760,6 +761,18 @@ Basic dashboard with:
 - Performance benchmarks for analytics endpoints
 - Database query optimization (N+1 detection, index tuning)
 - Redis connection pool optimization
+
+### Phase 31: Multilingual Deep Dive ✅
+- **Jalali (Shamsi) Calendar**: Full Jalali date support via `jalaali-js` library. `JalaliDatePicker` component with month navigation, day-of-week headers (شنبه–جمعه), today highlight, and locale-aware rendering. Persian locale shows Jalali dates; English locale shows Gregorian.
+- **Locale-aware Formatting Library** (`src/lib/format.ts`): Comprehensive formatting module with 15+ functions — `formatNumber`, `formatPercent`, `formatPercentRaw`, `formatCurrency`, `formatDate`, `formatDateOnly`, `formatDateShort`, `formatRelativeTime`, `formatDuration`. All accept a `locale` parameter. Persian: Persian digits (۰-۹), Jalali dates, ٪ symbol. English: Latin digits, Gregorian dates, % symbol.
+- **`useFormat()` React Hook** (`src/lib/use-format.ts`): Client-side hook binding all formatting functions to the current `next-intl` locale. Returns `fmt.number()`, `fmt.date()`, `fmt.currency()`, `fmt.percent()`, `fmt.relative()`, `fmt.duration()`, `fmt.digits()`, etc.
+- **21 Page/Component Migration**: All 21 files (14 pages + 7 components) migrated from hardcoded Persian formatters (`fmtNum`, `fmtDate`, etc.) to locale-aware `useFormat()` hook. Sub-components with their own React scope also properly wired.
+- **DateRangePicker Upgrade**: Uses `JalaliDatePicker` for Persian locale, native `<input type="date">` for English. Preset buttons (7/30/90/365 days) work in both locales.
+- **RTL Animations**: Slide-in animations reversed for RTL direction. Number/telephone inputs forced LTR.
+- **i18n Additions**: New `calendar` namespace (month names, weekday abbreviations, relative time labels) and `format` namespace (date format type, currency units, percent symbol) in both `fa.json` and `en.json`.
+- **Backward Compatibility**: Old formatters (`fmtNum`, `fmtDate`, etc.) preserved as deprecated re-exports from `utils.ts` → `format.ts`.
+- **Type Definitions**: TypeScript declarations for `jalaali-js` library (`src/types/jalaali-js.d.ts`).
+- Next.js build passes for both `fa` and `en` locales. 294 backend unit tests passing.
 
 ## Tech Stack
 

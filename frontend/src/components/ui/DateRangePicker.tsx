@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
+import JalaliDatePicker from "./JalaliDatePicker";
 
 interface DateRangePickerProps {
   startDate: string;
@@ -33,6 +34,8 @@ export default function DateRangePicker({
 }: DateRangePickerProps) {
   const [showCustom, setShowCustom] = useState(false);
   const t = useTranslations("dateRange");
+  const locale = useLocale();
+  const isFa = locale === "fa";
 
   const handlePreset = useCallback(
     (days: number) => {
@@ -75,24 +78,37 @@ export default function DateRangePicker({
       {showCustom && (
         <div className="flex items-center gap-2">
           <label className="text-xs text-gray-500">{t("from")}</label>
-          <input
-            type="date"
-            value={startDate}
-            onChange={(e) => onChange(e.target.value, endDate)}
-            className="px-2 py-1 border border-gray-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
-            dir="ltr"
-          />
+          {isFa ? (
+            <JalaliDatePicker
+              value={startDate}
+              onChange={(iso) => onChange(iso, endDate)}
+              className="w-36"
+            />
+          ) : (
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => onChange(e.target.value, endDate)}
+              className="px-2 py-1 border border-gray-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          )}
           <label className="text-xs text-gray-500">{t("to")}</label>
-          <input
-            type="date"
-            value={endDate}
-            onChange={(e) => onChange(startDate, e.target.value)}
-            className="px-2 py-1 border border-gray-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
-            dir="ltr"
-          />
+          {isFa ? (
+            <JalaliDatePicker
+              value={endDate}
+              onChange={(iso) => onChange(startDate, iso)}
+              className="w-36"
+            />
+          ) : (
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => onChange(startDate, e.target.value)}
+              className="px-2 py-1 border border-gray-300 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          )}
         </div>
       )}
     </div>
   );
 }
-

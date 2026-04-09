@@ -2,10 +2,10 @@
 
 import { useState, useRef } from "react";
 import { useTranslations } from "next-intl";
+import { useFormat } from "@/lib/use-format";
 import { useApi } from "@/lib/hooks";
 import { apiPost, uploadFile } from "@/lib/api-client";
 import DataTable from "@/components/ui/DataTable";
-import { fmtDate, fmtNum } from "@/lib/utils";
 
 interface ScanResult {
   folder: string;
@@ -53,6 +53,7 @@ const SOURCE_TYPE_ICONS: Record<string, string> = {
 
 export default function SettingsPage() {
   const t = useTranslations("settings");
+  const fmt = useFormat();
   const tc = useTranslations("common");
 
   const [scanResult, setScanResult] = useState<ScanResult | null>(null);
@@ -226,7 +227,7 @@ export default function SettingsPage() {
     {
       key: "started_at",
       header: t("colDate"),
-      render: (h: ImportHistory) => fmtDate(h.started_at),
+      render: (h: ImportHistory) => fmt.date(h.started_at),
     },
   ];
 
@@ -403,6 +404,7 @@ function DataSourceCard({
   icon: string; lastSyncAt?: string | null; recordsSynced?: number;
   t: ReturnType<typeof useTranslations>;
 }) {
+  const fmt = useFormat();
   const statusConfig = {
     connected: { label: t("connected"), color: "bg-green-500", textColor: "text-green-700" },
     disconnected: { label: t("disconnected"), color: "bg-red-500", textColor: "text-red-700" },
@@ -426,9 +428,9 @@ function DataSourceCard({
       </div>
       {(lastSyncAt || (recordsSynced != null && recordsSynced > 0)) && (
         <div className="mt-2 pt-2 border-t border-gray-100 flex items-center justify-between text-xs text-gray-400">
-          {lastSyncAt && <span>{t("lastSync", { date: fmtDate(lastSyncAt) })}</span>}
+          {lastSyncAt && <span>{t("lastSync", { date: fmt.date(lastSyncAt) })}</span>}
           {recordsSynced != null && recordsSynced > 0 && (
-            <span>{t("records", { count: fmtNum(recordsSynced) })}</span>
+            <span>{t("records", { count: fmt.number(recordsSynced) })}</span>
           )}
         </div>
       )}

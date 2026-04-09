@@ -2,13 +2,14 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
+import { useFormat } from "@/lib/use-format";
 import { useApi } from "@/lib/hooks";
 import StatCard from "@/components/ui/StatCard";
 import FunnelBarChart from "@/components/charts/FunnelBarChart";
 import TrendLineChart from "@/components/charts/TrendLineChart";
 import DataTable from "@/components/ui/DataTable";
 import DateRangePicker from "@/components/ui/DateRangePicker";
-import { fmtNum, fmtPercent, fmtPercentRaw, fmtCurrency } from "@/lib/utils";
+
 import { STAGE_LABELS } from "@/lib/constants";
 import type { FunnelMetrics, FunnelTrend, ConversionRate } from "@/types/analytics";
 
@@ -20,6 +21,7 @@ function daysAgo(n: number): string {
 
 export default function FunnelPage() {
   const t = useTranslations("funnel");
+  const fmt = useFormat();
   const tc = useTranslations("common");
   const [startDate, setStartDate] = useState(() => daysAgo(30));
   const [endDate, setEndDate] = useState(() => new Date().toISOString().split("T")[0]);
@@ -60,7 +62,7 @@ export default function FunnelPage() {
                 style={{ width: `${Math.min(pct, 100)}%` }}
               />
             </div>
-            <span className="text-sm font-medium">{fmtPercent(r.rate)}</span>
+            <span className="text-sm font-medium">{fmt.percent(r.rate)}</span>
           </div>
         );
       },
@@ -82,26 +84,26 @@ export default function FunnelPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           title={t("totalLeads")}
-          value={fmtNum(funnel.data?.total_leads)}
+          value={fmt.number(funnel.data?.total_leads)}
           icon="📋"
           color="text-blue-600"
           change={funnel.data?.leads_change_percent}
         />
         <StatCard
           title={t("overallConversionRate")}
-          value={fmtPercent(funnel.data?.overall_conversion_rate)}
+          value={fmt.percent(funnel.data?.overall_conversion_rate)}
           icon="📈"
           color="text-green-600"
         />
         <StatCard
           title={t("avgDaysToConvert")}
-          value={fmtNum(funnel.data?.average_days_to_convert)}
+          value={fmt.number(funnel.data?.average_days_to_convert)}
           icon="⏱️"
           color="text-amber-600"
         />
         <StatCard
           title={t("totalRevenue")}
-          value={fmtCurrency(funnel.data?.total_revenue)}
+          value={fmt.currency(funnel.data?.total_revenue)}
           icon="💰"
           color="text-purple-600"
           change={funnel.data?.revenue_change_percent}
@@ -138,10 +140,10 @@ export default function FunnelPage() {
                   {STAGE_LABELS[s.stage] || s.stage}
                 </div>
                 <div className="text-lg font-bold text-gray-800">
-                  {fmtNum(s.count)}
+                  {fmt.number(s.count)}
                 </div>
                 <div className="text-xs text-gray-400">
-                  {fmtPercentRaw(s.percentage)}
+                  {fmt.percentRaw(s.percentage)}
                 </div>
               </div>
             ))}
