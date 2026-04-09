@@ -74,6 +74,9 @@ class CampaignModel(Base, UUIDMixin, TimestampMixin):
     estimated_cost: Mapped[int] = mapped_column(Integer, default=0)
     actual_cost: Mapped[int] = mapped_column(Integer, default=0)
 
+    # Camunda BPMS integration
+    process_instance_id: Mapped[str | None] = mapped_column(String(255))
+
     # Audit
     created_by: Mapped[UUID | None] = mapped_column(UUID(as_uuid=True))
     metadata_: Mapped[dict] = mapped_column("metadata", JSON, default=dict)
@@ -82,6 +85,7 @@ class CampaignModel(Base, UUIDMixin, TimestampMixin):
         Index("ix_campaigns_tenant_status", "tenant_id", "status"),
         Index("ix_campaigns_tenant_name", "tenant_id", "name"),
         Index("ix_campaigns_tenant_created", "tenant_id", "created_at"),
+        Index("ix_campaigns_tenant_process_instance", "tenant_id", "process_instance_id"),
     )
 
 

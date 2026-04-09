@@ -211,6 +211,18 @@ async def get_campaign_recipient_repository(
     return CampaignRecipientRepository(session, tenant_id)
 
 
+async def get_campaign_workflow_service(
+    repo: "CampaignRepository" = Depends(get_campaign_repository),  # noqa: F821
+):
+    """Provide CampaignWorkflowService with Camunda client + campaign repo."""
+    from src.infrastructure.camunda.client import get_camunda_client
+    from src.modules.campaigns.application.campaign_workflow_service import CampaignWorkflowService
+    return CampaignWorkflowService(
+        camunda_client=get_camunda_client(),
+        repo=repo,
+    )
+
+
 # ──────────────────── Notification Repositories ─────────────────────
 
 

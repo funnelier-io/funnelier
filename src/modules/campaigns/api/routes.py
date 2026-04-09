@@ -14,10 +14,14 @@ from src.api.dependencies import (
     get_current_tenant_id,
     get_campaign_repository,
     get_campaign_recipient_repository,
+    get_campaign_workflow_service,
 )
 from src.modules.campaigns.infrastructure.repositories import (
     CampaignRepository,
     CampaignRecipientRepository,
+)
+from src.modules.campaigns.application.campaign_workflow_service import (
+    CampaignWorkflowService,
 )
 
 from .schemas import (
@@ -53,6 +57,7 @@ def _model_to_response(model) -> CampaignResponse:
         targeting=CampaignTargetingSchema(**(model.targeting or {})) if model.targeting else CampaignTargetingSchema(),
         schedule=model.schedule,
         status=model.status,
+        process_instance_id=getattr(model, "process_instance_id", None),
         is_active=model.is_active,
         total_recipients=model.total_recipients,
         sent_count=model.total_sent,
@@ -221,15 +226,16 @@ async def pause_campaign(
     campaign_id: UUID,
     tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
     repo: CampaignRepository = Depends(get_campaign_repository),
+    workflow: CampaignWorkflowService = Depends(get_campaign_workflow_service),
 ):
-    """Pause a running campaign."""
+    """Pause a running campaign (suspends Camunda process when enabled)."""
     model = await repo.get_model(campaign_id)
     if not model:
         raise HTTPException(status_code=404, detail="Campaign not found")
     if model.status != "running":
         raise HTTPException(status_code=400, detail="Can only pause running campaigns")
 
-    updated = await repo.update_status(campaign_id, "paused")
+    updated = await workflow.pause_campaign(campaign_id)
     return _model_to_response(updated)
 
 
@@ -238,15 +244,16 @@ async def resume_campaign(
     campaign_id: UUID,
     tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
     repo: CampaignRepository = Depends(get_campaign_repository),
+    workflow: CampaignWorkflowService = Depends(get_campaign_workflow_service),
 ):
-    """Resume a paused campaign."""
+    """Resume a paused campaign (activates Camunda process when enabled)."""
     model = await repo.get_model(campaign_id)
     if not model:
         raise HTTPException(status_code=404, detail="Campaign not found")
     if model.status != "paused":
         raise HTTPException(status_code=400, detail="Can only resume paused campaigns")
 
-    updated = await repo.update_status(campaign_id, "running")
+    updated = await workflow.resume_campaign(campaign_id)
     return _model_to_response(updated)
 
 
@@ -255,15 +262,16 @@ async def cancel_campaign(
     campaign_id: UUID,
     tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
     repo: CampaignRepository = Depends(get_campaign_repository),
+    workflow: CampaignWorkflowService = Depends(get_campaign_workflow_service),
 ):
-    """Cancel a campaign."""
+    """Cancel a campaign (deletes Camunda process when enabled)."""
     model = await repo.get_model(campaign_id)
     if not model:
         raise HTTPException(status_code=404, detail="Campaign not found")
     if model.status == "completed":
         raise HTTPException(status_code=400, detail="Cannot cancel completed campaigns")
 
-    updated = await repo.update_status(campaign_id, "cancelled")
+    updated = await workflow.cancel_campaign(campaign_id)
     return _model_to_response(updated)
 
 

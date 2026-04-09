@@ -375,6 +375,24 @@ class CamundaClient:
         )
         logger.info("Deleted process instance %s: %s", instance_id, reason)
 
+    async def suspend_process_instance(self, instance_id: str) -> None:
+        """Suspend (pause) a process instance."""
+        await self._request(
+            "PUT",
+            f"/process-instance/{instance_id}/suspended",
+            json={"suspended": True},
+        )
+        logger.info("Suspended process instance %s", instance_id)
+
+    async def activate_process_instance(self, instance_id: str) -> None:
+        """Activate (resume) a suspended process instance."""
+        await self._request(
+            "PUT",
+            f"/process-instance/{instance_id}/suspended",
+            json={"suspended": False},
+        )
+        logger.info("Activated process instance %s", instance_id)
+
     async def get_process_variables(
         self, instance_id: str
     ) -> dict[str, Any]:

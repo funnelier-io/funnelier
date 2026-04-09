@@ -71,12 +71,13 @@ async def _seed_default_tenant():
 
 
 _redis_listener_task: asyncio.Task | None = None
+_camunda_worker_task: asyncio.Task | None = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan events."""
-    global _redis_listener_task
+    global _redis_listener_task, _camunda_worker_task
 
     # Structured logging (must be first)
     from src.core.logging import setup_logging
@@ -121,9 +122,38 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning("Camunda startup error (non-fatal): %s", e)
 
+    # Camunda external task workers (campaign lifecycle)
+    try:
+        from src.infrastructure.camunda.client import get_camunda_client as _get_cc
+        _cc = _get_cc()
+        if _cc.enabled:
+            from src.infrastructure.camunda.workers import (
+                ExternalTaskWorkerRunner,
+                handle_prepare_recipients,
+                handle_send_campaign_sms,
+                handle_track_delivery,
+                handle_measure_results,
+            )
+            runner = ExternalTaskWorkerRunner(client=_cc, settings=_cc.settings)
+            runner.register("prepare-campaign-recipients", handle_prepare_recipients)
+            runner.register("send-campaign-sms", handle_send_campaign_sms)
+            runner.register("track-sms-delivery", handle_track_delivery)
+            runner.register("measure-campaign-results", handle_measure_results)
+            _camunda_worker_task = asyncio.create_task(runner.run())
+            logger.info("Camunda external task worker started (4 campaign topics)")
+    except Exception as e:
+        logger.warning("Camunda worker startup error (non-fatal): %s", e)
+
     yield
 
     # Shutdown
+    if _camunda_worker_task and not _camunda_worker_task.done():
+        _camunda_worker_task.cancel()
+        try:
+            await _camunda_worker_task
+        except asyncio.CancelledError:
+            pass
+
     if _redis_listener_task and not _redis_listener_task.done():
         _redis_listener_task.cancel()
         try:

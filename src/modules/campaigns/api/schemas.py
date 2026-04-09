@@ -70,6 +70,7 @@ class CampaignResponse(CampaignBase):
     id: UUID
     tenant_id: UUID
     status: str  # draft, scheduled, running, paused, completed, cancelled
+    process_instance_id: str | None = None
     total_recipients: int = 0
     sent_count: int = 0
     delivered_count: int = 0

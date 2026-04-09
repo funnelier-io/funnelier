@@ -785,13 +785,17 @@ Basic dashboard with:
 - Unit tests for REST client
 - See [CAMUNDA_FEASIBILITY.md](./CAMUNDA_FEASIBILITY.md) for full analysis
 
-### Phase 33: Camunda BPMS — Campaign Workflow Migration
-- Design `campaign_lifecycle.bpmn` in Camunda Modeler
-- Build external task workers: prepare recipients, send SMS, track delivery
-- Migrate campaign API endpoints to start/correlate Camunda processes
-- Add `process_instance_id` to CampaignModel
-- Cockpit integration for campaign monitoring
-- Backward-compatible API (existing endpoints unchanged)
+### Phase 33: Camunda BPMS — Campaign Workflow Migration ✅
+- Added `process_instance_id` column to `CampaignModel` (Alembic migration `b1c2d3e4f5a6`)
+- Created `CampaignWorkflowService` application service with Camunda-or-fallback orchestration
+- Built 4 external task workers: `campaign_prepare`, `campaign_send`, `campaign_track`, `campaign_measure`
+- Added `suspend_process_instance()` / `activate_process_instance()` to `CamundaClient`
+- Migrated campaign API endpoints (start/pause/resume/cancel) to use `CampaignWorkflowService`
+- Workers auto-start in app lifespan when `CAMUNDA_ENABLED=true`
+- Added `get_campaign_workflow_service` FastAPI dependency
+- Updated `CampaignResponse` schema with `process_instance_id` field
+- Backward-compatible API — falls back to direct DB status updates when Camunda disabled
+- 31 unit tests (379 total passing)
 
 ### Phase 34: Camunda BPMS — User Approval Workflow
 - Design `user_approval.bpmn` with human task nodes
