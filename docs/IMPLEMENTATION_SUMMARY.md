@@ -797,12 +797,17 @@ Basic dashboard with:
 - Backward-compatible API — falls back to direct DB status updates when Camunda disabled
 - 31 unit tests (379 total passing)
 
-### Phase 34: Camunda BPMS — User Approval Workflow
-- Design `user_approval.bpmn` with human task nodes
-- Build approval task worker
-- Migrate register → approve/reject flow to Camunda
-- Timer-based escalation (auto-notify after 48h, auto-reject after 7d)
-- Frontend approval UI backed by Camunda process state
+### Phase 34: Camunda BPMS — User Approval Workflow ✅
+- Added `approval_process_id` column to `TenantUserModel` (Alembic migration `c2d3e4f5a6b7`)
+- Created `UserApprovalWorkflowService` with Camunda-or-fallback orchestration
+- Built 5 external task workers: notify-pending-user, activate-approved-user,
+  notify-user-approved, notify-user-rejected, send-approval-reminder
+- Integrated `register` endpoint: starts `user_approval` BPMN process on signup
+- Integrated `approve/reject` endpoints: completes Camunda human task (`admin_review`)
+- BPMN has 48h boundary timer for admin reminders
+- Added `set_approval_process_id` / `get_approval_process_id` to `UserRepository`
+- 9 total external task worker topics registered in app lifespan
+- 23 unit tests (402 total passing)
 
 ### Phase 35: Camunda BPMS — Funnel Journey Orchestration
 - Design `funnel_journey.bpmn` with message correlation events

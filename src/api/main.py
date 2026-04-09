@@ -122,7 +122,7 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning("Camunda startup error (non-fatal): %s", e)
 
-    # Camunda external task workers (campaign lifecycle)
+    # Camunda external task workers (campaign + user approval)
     try:
         from src.infrastructure.camunda.client import get_camunda_client as _get_cc
         _cc = _get_cc()
@@ -133,14 +133,26 @@ async def lifespan(app: FastAPI):
                 handle_send_campaign_sms,
                 handle_track_delivery,
                 handle_measure_results,
+                handle_notify_pending_user,
+                handle_activate_approved_user,
+                handle_notify_user_approved,
+                handle_notify_user_rejected,
+                handle_send_approval_reminder,
             )
             runner = ExternalTaskWorkerRunner(client=_cc, settings=_cc.settings)
+            # Campaign lifecycle workers
             runner.register("prepare-campaign-recipients", handle_prepare_recipients)
             runner.register("send-campaign-sms", handle_send_campaign_sms)
             runner.register("track-sms-delivery", handle_track_delivery)
             runner.register("measure-campaign-results", handle_measure_results)
+            # User approval workers
+            runner.register("notify-pending-user", handle_notify_pending_user)
+            runner.register("activate-approved-user", handle_activate_approved_user)
+            runner.register("notify-user-approved", handle_notify_user_approved)
+            runner.register("notify-user-rejected", handle_notify_user_rejected)
+            runner.register("send-approval-reminder", handle_send_approval_reminder)
             _camunda_worker_task = asyncio.create_task(runner.run())
-            logger.info("Camunda external task worker started (4 campaign topics)")
+            logger.info("Camunda external task worker started (9 topics)")
     except Exception as e:
         logger.warning("Camunda worker startup error (non-fatal): %s", e)
 

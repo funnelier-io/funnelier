@@ -83,6 +83,9 @@ class TenantUserModel(Base, UUIDMixin, TimestampMixin):
     # Permissions
     permissions: Mapped[list] = mapped_column(JSON, default=list)
 
+    # Camunda BPMS integration
+    approval_process_id: Mapped[str | None] = mapped_column(String(255))
+
     # Relationships
     tenant: Mapped["TenantModel"] = relationship(back_populates="users")
 

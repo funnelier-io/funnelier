@@ -240,3 +240,13 @@ async def get_notification_preference_repository(
 ):
     from src.modules.notifications.infrastructure.repositories import NotificationPreferenceRepository
     return NotificationPreferenceRepository(session, tenant_id)
+
+
+# ──────────────────── Camunda Workflow Services ─────────────────────
+
+
+def get_user_approval_workflow_service():
+    """Provide UserApprovalWorkflowService with Camunda client."""
+    from src.infrastructure.camunda.client import get_camunda_client
+    from src.modules.auth.application.user_approval_service import UserApprovalWorkflowService
+    return UserApprovalWorkflowService(camunda_client=get_camunda_client())

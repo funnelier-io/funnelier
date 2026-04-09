@@ -215,7 +215,7 @@ async def register(
     """
     Register a new user (self-signup).
     User is created with is_approved=False and must be approved by an admin.
-    Super admins auto-approve their own registrations.
+    When Camunda is enabled, starts the user_approval BPMN process.
     """
     repo = UserRepository(session, tenant_id)
 
@@ -235,6 +235,22 @@ async def register(
         is_approved=False,  # Requires admin approval
     )
     user = await repo.add(user)
+
+    # Start Camunda user approval workflow (non-blocking fallback)
+    try:
+        from src.api.dependencies import get_user_approval_workflow_service
+        approval_svc = get_user_approval_workflow_service()
+        process_id = await approval_svc.on_user_registered(
+            user_id=user.id,
+            tenant_id=tenant_id,
+            username=user.username,
+            email=user.email,
+        )
+        if process_id:
+            await repo.set_approval_process_id(user.id, process_id)
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning("Camunda approval start failed: %s", e)
 
     tokens = create_token_pair(user.id, user.tenant_id, user.role.value)
     return TokenResponse(
@@ -331,7 +347,7 @@ async def approve_user(
     admin: Annotated[User, Depends(require_admin)],
     session: AsyncSession = Depends(get_db_session),
 ):
-    """Approve a pending user (admin only)."""
+    """Approve a pending user (admin only). Completes Camunda task when enabled."""
     repo = UserRepository(session, admin.tenant_id)
     target = await repo.get(user_id)
     if not target:
@@ -343,6 +359,21 @@ async def approve_user(
 
     await repo.approve_user(user_id)
     target.is_approved = True
+
+    # Complete Camunda approval task (non-blocking fallback)
+    try:
+        from src.api.dependencies import get_user_approval_workflow_service
+        approval_svc = get_user_approval_workflow_service()
+        process_id = await repo.get_approval_process_id(user_id)
+        await approval_svc.on_user_approved(
+            user_id=user_id,
+            tenant_id=admin.tenant_id,
+            approval_process_id=process_id,
+        )
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning("Camunda approve task failed: %s", e)
+
     return _user_to_response(target)
 
 
@@ -352,7 +383,7 @@ async def reject_user(
     admin: Annotated[User, Depends(require_admin)],
     session: AsyncSession = Depends(get_db_session),
 ):
-    """Reject and deactivate a pending user (admin only)."""
+    """Reject and deactivate a pending user (admin only). Completes Camunda task when enabled."""
     repo = UserRepository(session, admin.tenant_id)
     target = await repo.get(user_id)
     if not target:
@@ -361,6 +392,20 @@ async def reject_user(
         raise HTTPException(status_code=403, detail="Access denied")
 
     await repo.deactivate_user(user_id)
+
+    # Complete Camunda rejection task (non-blocking fallback)
+    try:
+        from src.api.dependencies import get_user_approval_workflow_service
+        approval_svc = get_user_approval_workflow_service()
+        process_id = await repo.get_approval_process_id(user_id)
+        await approval_svc.on_user_rejected(
+            user_id=user_id,
+            tenant_id=admin.tenant_id,
+            approval_process_id=process_id,
+        )
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning("Camunda reject task failed: %s", e)
 
 
 @router.put("/users/{user_id}/role", response_model=UserResponse)

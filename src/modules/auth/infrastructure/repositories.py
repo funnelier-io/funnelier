@@ -175,6 +175,23 @@ class UserRepository(SqlAlchemyRepository[TenantUserModel, User]):
         )
         await self._session.execute(stmt)
 
+    async def set_approval_process_id(self, user_id: UUID, process_id: str) -> None:
+        """Store Camunda approval process instance ID on the user."""
+        stmt = (
+            update(TenantUserModel)
+            .where(TenantUserModel.id == user_id)
+            .values(approval_process_id=process_id)
+        )
+        await self._session.execute(stmt)
+
+    async def get_approval_process_id(self, user_id: UUID) -> str | None:
+        """Get the Camunda approval process instance ID for a user."""
+        stmt = select(TenantUserModel.approval_process_id).where(
+            TenantUserModel.id == user_id,
+        )
+        result = await self._session.execute(stmt)
+        return result.scalar_one_or_none()
+
     async def get_pending_users(self, tenant_id: UUID) -> list[User]:
         """Get users pending approval for a tenant."""
         stmt = select(TenantUserModel).where(
