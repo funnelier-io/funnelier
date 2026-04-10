@@ -138,6 +138,7 @@ async def lifespan(app: FastAPI):
                 handle_notify_user_approved,
                 handle_notify_user_rejected,
                 handle_send_approval_reminder,
+                handle_update_funnel_stage,
             )
             runner = ExternalTaskWorkerRunner(client=_cc, settings=_cc.settings)
             # Campaign lifecycle workers
@@ -151,8 +152,10 @@ async def lifespan(app: FastAPI):
             runner.register("notify-user-approved", handle_notify_user_approved)
             runner.register("notify-user-rejected", handle_notify_user_rejected)
             runner.register("send-approval-reminder", handle_send_approval_reminder)
+            # Funnel journey workers
+            runner.register("update-funnel-stage", handle_update_funnel_stage)
             _camunda_worker_task = asyncio.create_task(runner.run())
-            logger.info("Camunda external task worker started (9 topics)")
+            logger.info("Camunda external task worker started (10 topics)")
     except Exception as e:
         logger.warning("Camunda worker startup error (non-fatal): %s", e)
 

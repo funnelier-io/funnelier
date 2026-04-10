@@ -16,6 +16,7 @@ from .user_approval import (
     handle_notify_user_rejected,
     handle_send_approval_reminder,
 )
+from .funnel_stage_update import handle_update_funnel_stage
 
 __all__ = [
     "ExternalTaskWorkerRunner",
@@ -28,5 +29,6 @@ __all__ = [
     "handle_notify_user_approved",
     "handle_notify_user_rejected",
     "handle_send_approval_reminder",
+    "handle_update_funnel_stage",
 ]
 
