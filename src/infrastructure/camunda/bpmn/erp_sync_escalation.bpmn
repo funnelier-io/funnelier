@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:camunda="http://camunda.org/schema/1.0/bpmn"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  id="Definitions_erp_sync"
+                  targetNamespace="http://funnelier.ir/bpmn"
+                  exporter="Funnelier"
+                  exporterVersion="2.0">
+
+  <!-- Messages -->
+  <bpmn:message id="msg_sync_resolved" name="erp_sync_resolved" />
+
+  <bpmn:process id="erp_sync_escalation" name="ERP Sync Failure Escalation" isExecutable="true">
+
+    <!-- Start: ERP sync failure detected -->
+    <bpmn:startEvent id="start" name="Sync Failure Detected">
+      <bpmn:outgoing>flow_start_to_log</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Step 1: Log the failure and create a sync_log entry -->
+    <bpmn:serviceTask id="log_failure" name="Log Sync Failure"
+                      camunda:type="external" camunda:topic="erp-log-sync-failure">
+      <bpmn:incoming>flow_start_to_log</bpmn:incoming>
+      <bpmn:outgoing>flow_log_to_retry_gw</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Gateway: Should we retry? -->
+    <bpmn:exclusiveGateway id="gw_retry" name="Retries Left?">
+      <bpmn:incoming>flow_log_to_retry_gw</bpmn:incoming>
+      <bpmn:incoming>flow_retry_fail_to_gw</bpmn:incoming>
+      <bpmn:outgoing>flow_gw_to_retry</bpmn:outgoing>
+      <bpmn:outgoing>flow_gw_to_escalate</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Wait 5 minutes before retry -->
+    <bpmn:intermediateCatchEvent id="wait_retry" name="Wait 5 min">
+      <bpmn:incoming>flow_gw_to_retry</bpmn:incoming>
+      <bpmn:outgoing>flow_wait_to_retry_task</bpmn:outgoing>
+      <bpmn:timerEventDefinition>
+        <bpmn:timeDuration>PT5M</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Step 2: Retry the ERP sync -->
+    <bpmn:serviceTask id="retry_sync" name="Retry ERP Sync"
+                      camunda:type="external" camunda:topic="erp-retry-sync">
+      <bpmn:incoming>flow_wait_to_retry_task</bpmn:incoming>
+      <bpmn:outgoing>flow_retry_to_check</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Gateway: Retry succeeded? -->
+    <bpmn:exclusiveGateway id="gw_retry_result" name="Retry Succeeded?">
+      <bpmn:incoming>flow_retry_to_check</bpmn:incoming>
+      <bpmn:outgoing>flow_retry_success</bpmn:outgoing>
+      <bpmn:outgoing>flow_retry_fail_to_gw</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Step 3a: Retry succeeded → mark resolved -->
+    <bpmn:serviceTask id="mark_resolved" name="Mark Resolved"
+                      camunda:type="external" camunda:topic="erp-mark-resolved">
+      <bpmn:incoming>flow_retry_success</bpmn:incoming>
+      <bpmn:outgoing>flow_resolved_to_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:endEvent id="end_resolved" name="Sync Resolved">
+      <bpmn:incoming>flow_resolved_to_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Step 3b: Retries exhausted → escalate to admin -->
+    <bpmn:serviceTask id="escalate_to_admin" name="Escalate to Admin"
+                      camunda:type="external" camunda:topic="erp-escalate-failure">
+      <bpmn:incoming>flow_gw_to_escalate</bpmn:incoming>
+      <bpmn:outgoing>flow_escalate_to_wait</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- Wait for manual resolution (admin acknowledges / resolves via message) -->
+    <bpmn:intermediateCatchEvent id="wait_resolution" name="Await Resolution">
+      <bpmn:incoming>flow_escalate_to_wait</bpmn:incoming>
+      <bpmn:outgoing>flow_resolution_to_end</bpmn:outgoing>
+      <bpmn:messageEventDefinition messageRef="msg_sync_resolved" />
+    </bpmn:intermediateCatchEvent>
+
+    <!-- Boundary timer: 24 hours without resolution → send reminder -->
+    <bpmn:boundaryEvent id="timer_reminder" name="24h Reminder"
+                        attachedToRef="wait_resolution" cancelActivity="false">
+      <bpmn:outgoing>flow_reminder_to_notify</bpmn:outgoing>
+      <bpmn:timerEventDefinition>
+        <bpmn:timeCycle>R/PT24H</bpmn:timeCycle>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+
+    <bpmn:serviceTask id="send_reminder" name="Send Escalation Reminder"
+                      camunda:type="external" camunda:topic="erp-send-reminder">
+      <bpmn:incoming>flow_reminder_to_notify</bpmn:incoming>
+      <bpmn:outgoing>flow_reminder_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:endEvent id="end_reminder">
+      <bpmn:incoming>flow_reminder_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:endEvent id="end_manual_resolved" name="Manually Resolved">
+      <bpmn:incoming>flow_resolution_to_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Sequence Flows -->
+    <bpmn:sequenceFlow id="flow_start_to_log" sourceRef="start" targetRef="log_failure" />
+    <bpmn:sequenceFlow id="flow_log_to_retry_gw" sourceRef="log_failure" targetRef="gw_retry" />
+    <bpmn:sequenceFlow id="flow_gw_to_retry" sourceRef="gw_retry" targetRef="wait_retry">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${retry_count &lt; max_retries}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="flow_gw_to_escalate" sourceRef="gw_retry" targetRef="escalate_to_admin">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${retry_count &gt;= max_retries}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="flow_wait_to_retry_task" sourceRef="wait_retry" targetRef="retry_sync" />
+    <bpmn:sequenceFlow id="flow_retry_to_check" sourceRef="retry_sync" targetRef="gw_retry_result" />
+    <bpmn:sequenceFlow id="flow_retry_success" sourceRef="gw_retry_result" targetRef="mark_resolved">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${retry_success == true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="flow_retry_fail_to_gw" sourceRef="gw_retry_result" targetRef="gw_retry">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${retry_success == false}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="flow_resolved_to_end" sourceRef="mark_resolved" targetRef="end_resolved" />
+    <bpmn:sequenceFlow id="flow_escalate_to_wait" sourceRef="escalate_to_admin" targetRef="wait_resolution" />
+    <bpmn:sequenceFlow id="flow_resolution_to_end" sourceRef="wait_resolution" targetRef="end_manual_resolved" />
+    <bpmn:sequenceFlow id="flow_reminder_to_notify" sourceRef="timer_reminder" targetRef="send_reminder" />
+    <bpmn:sequenceFlow id="flow_reminder_end" sourceRef="send_reminder" targetRef="end_reminder" />
+
+  </bpmn:process>
+
+</bpmn:definitions>
+

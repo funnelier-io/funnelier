@@ -5,7 +5,7 @@
                   id="Definitions_funnel"
                   targetNamespace="http://funnelier.ir/bpmn"
                   exporter="Funnelier"
-                  exporterVersion="1.0">
+                  exporterVersion="2.0">
 
   <!-- Messages for funnel stage transitions -->
   <bpmn:message id="msg_sms_sent" name="sms_sent" />
@@ -17,66 +17,182 @@
 
   <bpmn:process id="funnel_journey" name="Funnel Journey" isExecutable="true">
 
-    <!-- Start: Lead acquired -->
+    <!-- ═══ Start: Lead acquired ═══ -->
     <bpmn:startEvent id="start" name="Lead Acquired">
-      <bpmn:outgoing>flow_start_to_wait_sms</bpmn:outgoing>
+      <bpmn:outgoing>flow_start_to_update_lead</bpmn:outgoing>
     </bpmn:startEvent>
 
-    <!-- Wait for SMS sent event -->
+    <!-- Service task: record lead_acquired in DB -->
+    <bpmn:serviceTask id="update_stage_lead" name="Update: Lead Acquired"
+                      camunda:type="external" camunda:topic="update-funnel-stage">
+      <bpmn:incoming>flow_start_to_update_lead</bpmn:incoming>
+      <bpmn:outgoing>flow_update_lead_to_wait_sms</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- ═══ Wait for SMS sent event ═══ -->
     <bpmn:intermediateCatchEvent id="wait_sms_sent" name="SMS Sent">
-      <bpmn:incoming>flow_start_to_wait_sms</bpmn:incoming>
-      <bpmn:outgoing>flow_sms_sent_to_delivered</bpmn:outgoing>
+      <bpmn:incoming>flow_update_lead_to_wait_sms</bpmn:incoming>
+      <bpmn:outgoing>flow_sms_sent_to_update</bpmn:outgoing>
       <bpmn:messageEventDefinition messageRef="msg_sms_sent" />
     </bpmn:intermediateCatchEvent>
 
-    <!-- Wait for SMS delivered event -->
+    <!-- Boundary timer: stale at sms_sent (14 days) -->
+    <bpmn:boundaryEvent id="timer_stale_sms" name="Stale: No SMS (14d)"
+                        attachedToRef="wait_sms_sent" cancelActivity="false">
+      <bpmn:outgoing>flow_stale_sms_to_notify</bpmn:outgoing>
+      <bpmn:timerEventDefinition>
+        <bpmn:timeDuration>P14D</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+
+    <bpmn:serviceTask id="notify_stale_sms" name="Notify: Stale Lead"
+                      camunda:type="external" camunda:topic="notify-stale-stage">
+      <bpmn:incoming>flow_stale_sms_to_notify</bpmn:incoming>
+      <bpmn:outgoing>flow_stale_sms_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:endEvent id="end_stale_sms">
+      <bpmn:incoming>flow_stale_sms_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- Service task: record sms_sent in DB -->
+    <bpmn:serviceTask id="update_stage_sms_sent" name="Update: SMS Sent"
+                      camunda:type="external" camunda:topic="update-funnel-stage">
+      <bpmn:incoming>flow_sms_sent_to_update</bpmn:incoming>
+      <bpmn:outgoing>flow_update_sms_sent_to_wait</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- ═══ Wait for SMS delivered event ═══ -->
     <bpmn:intermediateCatchEvent id="wait_sms_delivered" name="SMS Delivered">
-      <bpmn:incoming>flow_sms_sent_to_delivered</bpmn:incoming>
-      <bpmn:outgoing>flow_delivered_to_call</bpmn:outgoing>
+      <bpmn:incoming>flow_update_sms_sent_to_wait</bpmn:incoming>
+      <bpmn:outgoing>flow_sms_delivered_to_update</bpmn:outgoing>
       <bpmn:messageEventDefinition messageRef="msg_sms_delivered" />
     </bpmn:intermediateCatchEvent>
 
-    <!-- Wait for call attempted event -->
+    <bpmn:serviceTask id="update_stage_sms_delivered" name="Update: SMS Delivered"
+                      camunda:type="external" camunda:topic="update-funnel-stage">
+      <bpmn:incoming>flow_sms_delivered_to_update</bpmn:incoming>
+      <bpmn:outgoing>flow_update_sms_delivered_to_wait</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- ═══ Wait for call attempted event ═══ -->
     <bpmn:intermediateCatchEvent id="wait_call_attempted" name="Call Attempted">
-      <bpmn:incoming>flow_delivered_to_call</bpmn:incoming>
-      <bpmn:outgoing>flow_call_to_answered</bpmn:outgoing>
+      <bpmn:incoming>flow_update_sms_delivered_to_wait</bpmn:incoming>
+      <bpmn:outgoing>flow_call_attempted_to_update</bpmn:outgoing>
       <bpmn:messageEventDefinition messageRef="msg_call_attempted" />
     </bpmn:intermediateCatchEvent>
 
-    <!-- Wait for call answered event (>= 90 seconds) -->
+    <bpmn:serviceTask id="update_stage_call_attempted" name="Update: Call Attempted"
+                      camunda:type="external" camunda:topic="update-funnel-stage">
+      <bpmn:incoming>flow_call_attempted_to_update</bpmn:incoming>
+      <bpmn:outgoing>flow_update_call_attempted_to_wait</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- ═══ Wait for call answered event (>= 90 seconds) ═══ -->
     <bpmn:intermediateCatchEvent id="wait_call_answered" name="Call Answered">
-      <bpmn:incoming>flow_call_to_answered</bpmn:incoming>
-      <bpmn:outgoing>flow_answered_to_invoice</bpmn:outgoing>
+      <bpmn:incoming>flow_update_call_attempted_to_wait</bpmn:incoming>
+      <bpmn:outgoing>flow_call_answered_to_update</bpmn:outgoing>
       <bpmn:messageEventDefinition messageRef="msg_call_answered" />
     </bpmn:intermediateCatchEvent>
 
-    <!-- Wait for invoice issued event -->
+    <!-- Boundary timer: stale at call_answered (7 days) -->
+    <bpmn:boundaryEvent id="timer_stale_call" name="Stale: No Invoice (7d)"
+                        attachedToRef="wait_call_answered" cancelActivity="false">
+      <bpmn:outgoing>flow_stale_call_to_notify</bpmn:outgoing>
+      <bpmn:timerEventDefinition>
+        <bpmn:timeDuration>P7D</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+
+    <bpmn:serviceTask id="notify_stale_call" name="Notify: Stale Call"
+                      camunda:type="external" camunda:topic="notify-stale-stage">
+      <bpmn:incoming>flow_stale_call_to_notify</bpmn:incoming>
+      <bpmn:outgoing>flow_stale_call_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:endEvent id="end_stale_call">
+      <bpmn:incoming>flow_stale_call_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:serviceTask id="update_stage_call_answered" name="Update: Call Answered"
+                      camunda:type="external" camunda:topic="update-funnel-stage">
+      <bpmn:incoming>flow_call_answered_to_update</bpmn:incoming>
+      <bpmn:outgoing>flow_update_call_answered_to_wait</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- ═══ Wait for invoice issued event ═══ -->
     <bpmn:intermediateCatchEvent id="wait_invoice_issued" name="Invoice Issued">
-      <bpmn:incoming>flow_answered_to_invoice</bpmn:incoming>
-      <bpmn:outgoing>flow_invoice_to_payment</bpmn:outgoing>
+      <bpmn:incoming>flow_update_call_answered_to_wait</bpmn:incoming>
+      <bpmn:outgoing>flow_invoice_issued_to_update</bpmn:outgoing>
       <bpmn:messageEventDefinition messageRef="msg_invoice_issued" />
     </bpmn:intermediateCatchEvent>
 
-    <!-- Wait for payment received event -->
+    <!-- Boundary timer: stale at invoice_issued (7 days) -->
+    <bpmn:boundaryEvent id="timer_stale_invoice" name="Stale: No Payment (7d)"
+                        attachedToRef="wait_invoice_issued" cancelActivity="false">
+      <bpmn:outgoing>flow_stale_invoice_to_notify</bpmn:outgoing>
+      <bpmn:timerEventDefinition>
+        <bpmn:timeDuration>P7D</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+
+    <bpmn:serviceTask id="notify_stale_invoice" name="Notify: Stale Invoice"
+                      camunda:type="external" camunda:topic="notify-stale-stage">
+      <bpmn:incoming>flow_stale_invoice_to_notify</bpmn:incoming>
+      <bpmn:outgoing>flow_stale_invoice_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:endEvent id="end_stale_invoice">
+      <bpmn:incoming>flow_stale_invoice_end</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:serviceTask id="update_stage_invoice" name="Update: Invoice Issued"
+                      camunda:type="external" camunda:topic="update-funnel-stage">
+      <bpmn:incoming>flow_invoice_issued_to_update</bpmn:incoming>
+      <bpmn:outgoing>flow_update_invoice_to_wait</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- ═══ Wait for payment received event ═══ -->
     <bpmn:intermediateCatchEvent id="wait_payment_received" name="Payment Received">
-      <bpmn:incoming>flow_invoice_to_payment</bpmn:incoming>
-      <bpmn:outgoing>flow_payment_to_end</bpmn:outgoing>
+      <bpmn:incoming>flow_update_invoice_to_wait</bpmn:incoming>
+      <bpmn:outgoing>flow_payment_to_update</bpmn:outgoing>
       <bpmn:messageEventDefinition messageRef="msg_payment_received" />
     </bpmn:intermediateCatchEvent>
 
-    <!-- End: Fully converted -->
+    <bpmn:serviceTask id="update_stage_payment" name="Update: Payment Received"
+                      camunda:type="external" camunda:topic="update-funnel-stage">
+      <bpmn:incoming>flow_payment_to_update</bpmn:incoming>
+      <bpmn:outgoing>flow_update_payment_to_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- ═══ End: Fully converted ═══ -->
     <bpmn:endEvent id="end_converted" name="Converted">
-      <bpmn:incoming>flow_payment_to_end</bpmn:incoming>
+      <bpmn:incoming>flow_update_payment_to_end</bpmn:incoming>
     </bpmn:endEvent>
 
-    <!-- Sequence Flows -->
-    <bpmn:sequenceFlow id="flow_start_to_wait_sms" sourceRef="start" targetRef="wait_sms_sent" />
-    <bpmn:sequenceFlow id="flow_sms_sent_to_delivered" sourceRef="wait_sms_sent" targetRef="wait_sms_delivered" />
-    <bpmn:sequenceFlow id="flow_delivered_to_call" sourceRef="wait_sms_delivered" targetRef="wait_call_attempted" />
-    <bpmn:sequenceFlow id="flow_call_to_answered" sourceRef="wait_call_attempted" targetRef="wait_call_answered" />
-    <bpmn:sequenceFlow id="flow_answered_to_invoice" sourceRef="wait_call_answered" targetRef="wait_invoice_issued" />
-    <bpmn:sequenceFlow id="flow_invoice_to_payment" sourceRef="wait_invoice_issued" targetRef="wait_payment_received" />
-    <bpmn:sequenceFlow id="flow_payment_to_end" sourceRef="wait_payment_received" targetRef="end_converted" />
+    <!-- ═══ Sequence Flows ═══ -->
+    <bpmn:sequenceFlow id="flow_start_to_update_lead" sourceRef="start" targetRef="update_stage_lead" />
+    <bpmn:sequenceFlow id="flow_update_lead_to_wait_sms" sourceRef="update_stage_lead" targetRef="wait_sms_sent" />
+    <bpmn:sequenceFlow id="flow_sms_sent_to_update" sourceRef="wait_sms_sent" targetRef="update_stage_sms_sent" />
+    <bpmn:sequenceFlow id="flow_update_sms_sent_to_wait" sourceRef="update_stage_sms_sent" targetRef="wait_sms_delivered" />
+    <bpmn:sequenceFlow id="flow_sms_delivered_to_update" sourceRef="wait_sms_delivered" targetRef="update_stage_sms_delivered" />
+    <bpmn:sequenceFlow id="flow_update_sms_delivered_to_wait" sourceRef="update_stage_sms_delivered" targetRef="wait_call_attempted" />
+    <bpmn:sequenceFlow id="flow_call_attempted_to_update" sourceRef="wait_call_attempted" targetRef="update_stage_call_attempted" />
+    <bpmn:sequenceFlow id="flow_update_call_attempted_to_wait" sourceRef="update_stage_call_attempted" targetRef="wait_call_answered" />
+    <bpmn:sequenceFlow id="flow_call_answered_to_update" sourceRef="wait_call_answered" targetRef="update_stage_call_answered" />
+    <bpmn:sequenceFlow id="flow_update_call_answered_to_wait" sourceRef="update_stage_call_answered" targetRef="wait_invoice_issued" />
+    <bpmn:sequenceFlow id="flow_invoice_issued_to_update" sourceRef="wait_invoice_issued" targetRef="update_stage_invoice" />
+    <bpmn:sequenceFlow id="flow_update_invoice_to_wait" sourceRef="update_stage_invoice" targetRef="wait_payment_received" />
+    <bpmn:sequenceFlow id="flow_payment_to_update" sourceRef="wait_payment_received" targetRef="update_stage_payment" />
+    <bpmn:sequenceFlow id="flow_update_payment_to_end" sourceRef="update_stage_payment" targetRef="end_converted" />
+
+    <!-- Stale notification flows -->
+    <bpmn:sequenceFlow id="flow_stale_sms_to_notify" sourceRef="timer_stale_sms" targetRef="notify_stale_sms" />
+    <bpmn:sequenceFlow id="flow_stale_sms_end" sourceRef="notify_stale_sms" targetRef="end_stale_sms" />
+    <bpmn:sequenceFlow id="flow_stale_call_to_notify" sourceRef="timer_stale_call" targetRef="notify_stale_call" />
+    <bpmn:sequenceFlow id="flow_stale_call_end" sourceRef="notify_stale_call" targetRef="end_stale_call" />
+    <bpmn:sequenceFlow id="flow_stale_invoice_to_notify" sourceRef="timer_stale_invoice" targetRef="notify_stale_invoice" />
+    <bpmn:sequenceFlow id="flow_stale_invoice_end" sourceRef="notify_stale_invoice" targetRef="end_stale_invoice" />
 
   </bpmn:process>
 

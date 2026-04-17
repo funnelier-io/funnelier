@@ -2,7 +2,8 @@
 Funnel Journey API Routes
 
 REST endpoints for managing contact funnel journeys.
-Start journeys, correlate events, and query journey status.
+Start journeys, correlate events, query journey status,
+deploy per-tenant funnel processes, and get journey analytics.
 """
 
 from typing import Annotated, Any
@@ -95,6 +96,38 @@ class FunnelStagesResponse(BaseModel):
 
     stages: list[str]
     count: int
+
+
+class DeployTenantFunnelRequest(BaseModel):
+    """Request to deploy a custom funnel BPMN for a tenant."""
+
+    stages: list[dict[str, Any]] = Field(
+        ..., description="Stages with 'name', 'display_name', 'order' keys"
+    )
+    stale_timeouts: dict[str, str] = Field(
+        default_factory=dict,
+        description="Stage name → ISO 8601 duration (e.g. {'sms_sent': 'P14D'})",
+    )
+
+
+class DeployTenantFunnelResponse(BaseModel):
+    """Response after deploying a tenant funnel."""
+
+    deployment_id: str | None = None
+    process_key: str
+    stages_count: int
+    camunda_enabled: bool = False
+
+
+class JourneyAnalyticsResponse(BaseModel):
+    """Journey analytics for the tenant."""
+
+    total_active: int = 0
+    by_stage: dict[str, int] = Field(default_factory=dict)
+    stale_count: int = 0
+    conversion_rate: float = 0.0
+    camunda_enabled: bool = False
+    source: str = "database"
 
 
 # ─── Helper ──────────────────────────────────────────────────────────────────
@@ -249,4 +282,102 @@ async def get_journey_status(
         started_at=row.stage_entered_at.isoformat() if row.stage_entered_at else None,
         source="database",
     )
+
+
+@router.post("/deploy", response_model=DeployTenantFunnelResponse)
+async def deploy_tenant_funnel(
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
+    request: DeployTenantFunnelRequest,
+):
+    """
+    Deploy a custom funnel BPMN process for this tenant.
+
+    Generates a per-tenant BPMN from the provided stage configuration
+    and deploys it to Camunda. Includes optional stale-stage boundary
+    timer events.
+    """
+    from src.infrastructure.camunda.deployment import deploy_tenant_funnel as _deploy
+
+    client = get_camunda_client()
+    tenant_str = str(tenant_id)
+    process_key = f"funnel_journey_{tenant_str.replace('-', '_')}"
+
+    deployment = await _deploy(
+        client=client,
+        tenant_id=tenant_str,
+        stages=request.stages,
+        stale_timeouts=request.stale_timeouts,
+    )
+
+    return DeployTenantFunnelResponse(
+        deployment_id=deployment.id if deployment else None,
+        process_key=process_key,
+        stages_count=len(request.stages),
+        camunda_enabled=client.enabled,
+    )
+
+
+@router.get("/analytics", response_model=JourneyAnalyticsResponse)
+async def get_journey_analytics(
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+):
+    """
+    Get journey analytics: active journeys by stage, stale count, conversion rate.
+
+    Works from the database regardless of Camunda status.
+    """
+    from src.infrastructure.database.models.leads import ContactModel
+    from sqlalchemy import select, func, case
+
+    # Count contacts per stage
+    stmt = (
+        select(ContactModel.current_stage, func.count(ContactModel.id))
+        .where(ContactModel.tenant_id == tenant_id)
+        .where(ContactModel.is_active == True)
+        .group_by(ContactModel.current_stage)
+    )
+    result = await session.execute(stmt)
+    by_stage: dict[str, int] = {}
+    total_active = 0
+    for stage, count in result.all():
+        by_stage[stage] = count
+        total_active += count
+
+    # Count stale contacts (stage_entered_at > 14 days ago for pre-call, > 7 days for post-call)
+    from datetime import datetime, timedelta
+
+    cutoff_14d = datetime.utcnow() - timedelta(days=14)
+    cutoff_7d = datetime.utcnow() - timedelta(days=7)
+
+    stale_stmt = (
+        select(func.count(ContactModel.id))
+        .where(ContactModel.tenant_id == tenant_id)
+        .where(ContactModel.is_active == True)
+        .where(
+            case(
+                (ContactModel.current_stage.in_(["lead_acquired", "sms_sent", "sms_delivered"]),
+                 ContactModel.stage_entered_at < cutoff_14d),
+                (ContactModel.current_stage.in_(["call_attempted", "call_answered", "invoice_issued"]),
+                 ContactModel.stage_entered_at < cutoff_7d),
+                else_=False,
+            )
+        )
+    )
+    stale_result = await session.execute(stale_stmt)
+    stale_count = stale_result.scalar() or 0
+
+    # Conversion rate
+    payment_count = by_stage.get("payment_received", 0)
+    conversion_rate = (payment_count / total_active * 100) if total_active > 0 else 0.0
+
+    return JourneyAnalyticsResponse(
+        total_active=total_active,
+        by_stage=by_stage,
+        stale_count=stale_count,
+        conversion_rate=round(conversion_rate, 2),
+        camunda_enabled=get_camunda_client().enabled,
+        source="database",
+    )
+
 

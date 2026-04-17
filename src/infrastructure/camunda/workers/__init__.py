@@ -17,6 +17,15 @@ from .user_approval import (
     handle_send_approval_reminder,
 )
 from .funnel_stage_update import handle_update_funnel_stage
+from .stale_stage_notify import handle_notify_stale_stage
+from .erp_sync_escalation import (
+    handle_log_sync_failure,
+    handle_retry_sync,
+    handle_mark_resolved,
+    handle_escalate_failure,
+    handle_send_escalation_reminder,
+)
+from .sms_compensation import handle_compensate_sms_failure
 
 __all__ = [
     "ExternalTaskWorkerRunner",
@@ -30,5 +39,12 @@ __all__ = [
     "handle_notify_user_rejected",
     "handle_send_approval_reminder",
     "handle_update_funnel_stage",
+    "handle_notify_stale_stage",
+    "handle_log_sync_failure",
+    "handle_retry_sync",
+    "handle_mark_resolved",
+    "handle_escalate_failure",
+    "handle_send_escalation_reminder",
+    "handle_compensate_sms_failure",
 ]
 

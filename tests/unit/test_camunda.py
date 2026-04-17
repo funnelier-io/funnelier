@@ -17,7 +17,7 @@ import json
 from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import pytest
 
@@ -36,7 +36,7 @@ from src.infrastructure.camunda.client import (
     get_camunda_client,
     close_camunda_client,
 )
-from src.infrastructure.camunda.deployment import deploy_all_bpmn, generate_funnel_bpmn
+from src.infrastructure.camunda.deployment import deploy_all_bpmn, generate_funnel_bpmn, deploy_tenant_funnel
 from src.infrastructure.camunda.workers.base import ExternalTaskWorkerRunner
 
 
@@ -589,7 +589,10 @@ class TestBPMNDeployment:
         assert 'isExecutable="true"' in xml
         assert "<bpmn:startEvent" in xml
         assert "<bpmn:endEvent" in xml
-        assert "<bpmn:receiveTask" in xml
+        # Each stage generates a message catch event + external task service task
+        assert "<bpmn:intermediateCatchEvent" in xml
+        assert '<camunda:topic="update-funnel-stage"' in xml or 'camunda:topic="update-funnel-stage"' in xml
+        assert "<bpmn:serviceTask" in xml
 
     def test_generate_funnel_bpmn_custom_key(self):
         stages = [{"name": "step_a", "display_name": "Step A", "order": 1}]
@@ -757,4 +760,599 @@ class TestExceptions:
         assert e.status_code == 404
 
 
+# ─── Phase 35: Enhanced BPMN Generation & Deployment ──────────────────────────
+
+
+class TestEnhancedBPMNGeneration:
+    """Tests for enhanced generate_funnel_bpmn with stale timeouts."""
+
+    def test_bpmn_with_stale_timeouts(self):
+        """Stale timeouts should add boundary timer events."""
+        stages = [
+            {"name": "sms_sent", "display_name": "SMS Sent", "order": 1},
+            {"name": "call_answered", "display_name": "Call Answered", "order": 2},
+        ]
+        xml = generate_funnel_bpmn(
+            stages,
+            stale_timeouts={"sms_sent": "P14D", "call_answered": "P7D"},
+        )
+        assert "<bpmn:boundaryEvent" in xml
+        assert "<bpmn:timeDuration>P14D</bpmn:timeDuration>" in xml
+        assert "<bpmn:timeDuration>P7D</bpmn:timeDuration>" in xml
+        assert 'camunda:topic="notify-stale-stage"' in xml
+        assert 'cancelActivity="false"' in xml
+
+    def test_bpmn_without_stale_timeouts(self):
+        """No stale timeouts should not add boundary timer events."""
+        stages = [
+            {"name": "sms_sent", "display_name": "SMS Sent", "order": 1},
+        ]
+        xml = generate_funnel_bpmn(stages)
+        assert "<bpmn:boundaryEvent" not in xml
+        assert "notify-stale-stage" not in xml
+
+    def test_bpmn_partial_stale_timeouts(self):
+        """Only specified stages get boundary timers."""
+        stages = [
+            {"name": "sms_sent", "display_name": "SMS Sent", "order": 1},
+            {"name": "call_answered", "display_name": "Call Answered", "order": 2},
+            {"name": "invoice_issued", "display_name": "Invoice Issued", "order": 3},
+        ]
+        xml = generate_funnel_bpmn(
+            stages,
+            stale_timeouts={"call_answered": "P7D"},
+        )
+        assert "<bpmn:timeDuration>P7D</bpmn:timeDuration>" in xml
+        # Only one timer, not three
+        assert xml.count("<bpmn:boundaryEvent") == 1
+
+    def test_bpmn_has_camunda_namespace(self):
+        """Generated BPMN should include camunda namespace for external tasks."""
+        stages = [{"name": "sms_sent", "display_name": "SMS Sent", "order": 1}]
+        xml = generate_funnel_bpmn(stages)
+        assert 'xmlns:camunda="http://camunda.org/schema/1.0/bpmn"' in xml
+
+    def test_bpmn_has_external_task_service_tasks(self):
+        """Each stage should have both a message catch and a service task."""
+        stages = [
+            {"name": "sms_sent", "display_name": "SMS Sent", "order": 1},
+            {"name": "call_answered", "display_name": "Call Answered", "order": 2},
+        ]
+        xml = generate_funnel_bpmn(stages)
+        # 2 stage service tasks + 1 lead_acquired service task = at least 3
+        assert xml.count("update-funnel-stage") >= 3
+        # 2 message catch events
+        assert xml.count("<bpmn:intermediateCatchEvent") == 2
+        assert xml.count("<bpmn:messageEventDefinition") == 2
+
+    def test_bpmn_message_definitions(self):
+        """Message definitions should be generated for each stage."""
+        stages = [
+            {"name": "sms_sent", "display_name": "SMS Sent", "order": 1},
+            {"name": "sms_delivered", "display_name": "SMS Delivered", "order": 2},
+        ]
+        xml = generate_funnel_bpmn(stages)
+        assert 'id="msg_sms_sent" name="sms_sent"' in xml
+        assert 'id="msg_sms_delivered" name="sms_delivered"' in xml
+
+    def test_bpmn_single_stage(self):
+        """Single stage should still produce valid BPMN."""
+        stages = [{"name": "payment", "display_name": "Payment", "order": 1}]
+        xml = generate_funnel_bpmn(stages)
+        assert "<bpmn:startEvent" in xml
+        assert "<bpmn:endEvent" in xml
+        assert 'id="msg_payment"' in xml
+
+
+class TestDeployTenantFunnel:
+    """Tests for deploy_tenant_funnel function."""
+
+    @pytest.mark.asyncio
+    async def test_deploy_disabled(self):
+        """When Camunda is disabled, returns None."""
+        from src.infrastructure.camunda.deployment import deploy_tenant_funnel as _deploy
+
+        client = CamundaClient(CamundaSettings(enabled=False))
+        result = await _deploy(
+            client=client,
+            tenant_id="00000000-0000-0000-0000-000000000001",
+            stages=[{"name": "sms_sent", "display_name": "SMS Sent", "order": 1}],
+        )
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_deploy_success(self):
+        """Successful deployment returns Deployment object."""
+        from src.infrastructure.camunda.deployment import deploy_tenant_funnel as _deploy
+
+        client = AsyncMock(spec=CamundaClient)
+        client.enabled = True
+        mock_deployment = Deployment({"id": "deploy-1", "name": "test"})
+        client.deploy_bpmn = AsyncMock(return_value=mock_deployment)
+
+        result = await _deploy(
+            client=client,
+            tenant_id="00000000-0000-0000-0000-000000000001",
+            stages=[
+                {"name": "sms_sent", "display_name": "SMS Sent", "order": 1},
+                {"name": "call_answered", "display_name": "Call Answered", "order": 2},
+            ],
+            stale_timeouts={"sms_sent": "P14D"},
+        )
+        assert result is not None
+        assert result.id == "deploy-1"
+        client.deploy_bpmn.assert_called_once()
+
+        # Check that the generated BPMN includes tenant-specific process key
+        call_kwargs = client.deploy_bpmn.call_args[1]
+        assert "00000000" in call_kwargs["name"]
+
+    @pytest.mark.asyncio
+    async def test_deploy_connection_error(self):
+        """Connection error returns None gracefully."""
+        from src.infrastructure.camunda.deployment import deploy_tenant_funnel as _deploy
+
+        client = AsyncMock(spec=CamundaClient)
+        client.enabled = True
+        client.deploy_bpmn = AsyncMock(
+            side_effect=CamundaConnectionError("unreachable")
+        )
+
+        result = await _deploy(
+            client=client,
+            tenant_id="00000000-0000-0000-0000-000000000001",
+            stages=[{"name": "sms_sent", "display_name": "SMS Sent", "order": 1}],
+        )
+        assert result is None
+
+
+class TestStaleStageWorker:
+    """Tests for handle_notify_stale_stage external task worker."""
+
+    def _make_task(self, variables: dict[str, Any]) -> ExternalTask:
+        camunda_vars = {
+            k: {"value": v, "type": "String"} for k, v in variables.items()
+        }
+        return ExternalTask({
+            "id": "task-stale-1",
+            "topicName": "notify-stale-stage",
+            "processInstanceId": "proc-1",
+            "processDefinitionKey": "funnel_journey",
+            "activityId": "notify_stale",
+            "variables": camunda_vars,
+        })
+
+    @pytest.mark.asyncio
+    async def test_missing_variables(self):
+        """Missing contact_id/tenant_id returns notification_sent=False."""
+        from src.infrastructure.camunda.workers.stale_stage_notify import (
+            handle_notify_stale_stage,
+        )
+
+        task = self._make_task({"phone_number": "09121234567"})
+        client = AsyncMock(spec=CamundaClient)
+
+        result = await handle_notify_stale_stage(task, client)
+        assert result["notification_sent"] is False
+
+    @pytest.mark.asyncio
+    async def test_successful_notification(self):
+        """Successful DB insert returns notification_sent=True."""
+        from src.infrastructure.camunda.workers.stale_stage_notify import (
+            handle_notify_stale_stage,
+        )
+
+        contact_id = str(uuid4())
+        tenant_id = str(uuid4())
+
+        task = self._make_task({
+            "contact_id": contact_id,
+            "tenant_id": tenant_id,
+            "phone_number": "09121234567",
+            "current_stage": "sms_sent",
+            "contact_name": "تست",
+        })
+        client = AsyncMock(spec=CamundaClient)
+
+        mock_session = AsyncMock()
+        mock_session.add = MagicMock()
+        mock_session.commit = AsyncMock()
+
+        mock_factory = MagicMock()
+        mock_factory.return_value.__aenter__ = AsyncMock(return_value=mock_session)
+        mock_factory.return_value.__aexit__ = AsyncMock(return_value=False)
+
+        with patch(
+            "src.infrastructure.camunda.workers.stale_stage_notify.get_session_factory",
+            return_value=mock_factory,
+        ):
+            result = await handle_notify_stale_stage(task, client)
+
+        assert result["notification_sent"] is True
+        assert "notified_at" in result
+        mock_session.add.assert_called_once()
+        mock_session.commit.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_stale_worker_importable(self):
+        """Verify the stale stage worker is properly exported."""
+        from src.infrastructure.camunda.workers import handle_notify_stale_stage
+        assert handle_notify_stale_stage is not None
+        assert callable(handle_notify_stale_stage)
+
+
+class TestNewJourneySchemas:
+    """Tests for the new journey API schemas added in Phase 35."""
+
+    def test_deploy_tenant_funnel_request(self):
+        from src.modules.analytics.api.journey_routes import DeployTenantFunnelRequest
+
+        req = DeployTenantFunnelRequest(
+            stages=[
+                {"name": "sms_sent", "display_name": "SMS Sent", "order": 1},
+                {"name": "call_answered", "display_name": "Call Answered", "order": 2},
+            ],
+            stale_timeouts={"sms_sent": "P14D"},
+        )
+        assert len(req.stages) == 2
+        assert req.stale_timeouts["sms_sent"] == "P14D"
+
+    def test_deploy_tenant_funnel_request_no_timeouts(self):
+        from src.modules.analytics.api.journey_routes import DeployTenantFunnelRequest
+
+        req = DeployTenantFunnelRequest(
+            stages=[{"name": "step", "display_name": "Step", "order": 1}],
+        )
+        assert req.stale_timeouts == {}
+
+    def test_deploy_tenant_funnel_response(self):
+        from src.modules.analytics.api.journey_routes import DeployTenantFunnelResponse
+
+        resp = DeployTenantFunnelResponse(
+            deployment_id="deploy-1",
+            process_key="funnel_journey_tenant_abc",
+            stages_count=3,
+            camunda_enabled=True,
+        )
+        assert resp.deployment_id == "deploy-1"
+        assert resp.stages_count == 3
+
+    def test_deploy_tenant_funnel_response_disabled(self):
+        from src.modules.analytics.api.journey_routes import DeployTenantFunnelResponse
+
+        resp = DeployTenantFunnelResponse(
+            process_key="funnel_journey_tenant_abc",
+            stages_count=2,
+        )
+        assert resp.deployment_id is None
+        assert resp.camunda_enabled is False
+
+    def test_journey_analytics_response(self):
+        from src.modules.analytics.api.journey_routes import JourneyAnalyticsResponse
+
+        resp = JourneyAnalyticsResponse(
+            total_active=100,
+            by_stage={"lead_acquired": 80, "sms_sent": 15, "payment_received": 5},
+            stale_count=10,
+            conversion_rate=5.0,
+            camunda_enabled=False,
+            source="database",
+        )
+        assert resp.total_active == 100
+        assert resp.conversion_rate == 5.0
+        assert resp.by_stage["lead_acquired"] == 80
+
+    def test_journey_analytics_response_defaults(self):
+        from src.modules.analytics.api.journey_routes import JourneyAnalyticsResponse
+
+        resp = JourneyAnalyticsResponse()
+        assert resp.total_active == 0
+        assert resp.by_stage == {}
+        assert resp.stale_count == 0
+        assert resp.conversion_rate == 0.0
+        assert resp.source == "database"
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Phase 36 tests: Advanced Process Features
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class TestERPSyncEscalationBPMN:
+    """Tests for erp_sync_escalation.bpmn structure."""
+
+    def test_bpmn_file_exists(self):
+        bpmn_path = Path(__file__).parent.parent.parent / "src" / "infrastructure" / "camunda" / "bpmn" / "erp_sync_escalation.bpmn"
+        assert bpmn_path.exists(), f"Missing BPMN: {bpmn_path}"
+
+    def test_bpmn_has_required_elements(self):
+        bpmn_path = Path(__file__).parent.parent.parent / "src" / "infrastructure" / "camunda" / "bpmn" / "erp_sync_escalation.bpmn"
+        content = bpmn_path.read_text()
+        assert 'id="erp_sync_escalation"' in content
+        assert 'topic="erp-log-sync-failure"' in content
+        assert 'topic="erp-retry-sync"' in content
+        assert 'topic="erp-mark-resolved"' in content
+        assert 'topic="erp-escalate-failure"' in content
+        assert 'topic="erp-send-reminder"' in content
+
+    def test_bpmn_has_retry_gateway(self):
+        bpmn_path = Path(__file__).parent.parent.parent / "src" / "infrastructure" / "camunda" / "bpmn" / "erp_sync_escalation.bpmn"
+        content = bpmn_path.read_text()
+        assert 'id="gw_retry"' in content
+        assert "retry_count" in content
+        assert "max_retries" in content
+
+    def test_bpmn_has_timer_events(self):
+        bpmn_path = Path(__file__).parent.parent.parent / "src" / "infrastructure" / "camunda" / "bpmn" / "erp_sync_escalation.bpmn"
+        content = bpmn_path.read_text()
+        # 5 minute retry wait
+        assert "PT5M" in content
+        # 24h reminder cycle
+        assert "PT24H" in content
+
+    def test_bpmn_has_message_for_resolution(self):
+        bpmn_path = Path(__file__).parent.parent.parent / "src" / "infrastructure" / "camunda" / "bpmn" / "erp_sync_escalation.bpmn"
+        content = bpmn_path.read_text()
+        assert 'name="erp_sync_resolved"' in content
+
+
+class TestCampaignCompensationBPMN:
+    """Tests for enhanced campaign_lifecycle.bpmn with error boundary."""
+
+    def test_bpmn_has_error_definition(self):
+        bpmn_path = Path(__file__).parent.parent.parent / "src" / "infrastructure" / "camunda" / "bpmn" / "campaign_lifecycle.bpmn"
+        content = bpmn_path.read_text()
+        assert 'errorCode="SMS_SEND_FAILED"' in content
+
+    def test_bpmn_has_boundary_error_event(self):
+        bpmn_path = Path(__file__).parent.parent.parent / "src" / "infrastructure" / "camunda" / "bpmn" / "campaign_lifecycle.bpmn"
+        content = bpmn_path.read_text()
+        assert 'id="boundary_sms_error"' in content
+        assert 'attachedToRef="send_sms_batch"' in content
+
+    def test_bpmn_has_compensation_task(self):
+        bpmn_path = Path(__file__).parent.parent.parent / "src" / "infrastructure" / "camunda" / "bpmn" / "campaign_lifecycle.bpmn"
+        content = bpmn_path.read_text()
+        assert 'topic="compensate-sms-failure"' in content
+        assert 'id="compensate_sms"' in content
+
+    def test_bpmn_has_stale_delivery_timer(self):
+        bpmn_path = Path(__file__).parent.parent.parent / "src" / "infrastructure" / "camunda" / "bpmn" / "campaign_lifecycle.bpmn"
+        content = bpmn_path.read_text()
+        assert 'id="timer_stale_delivery"' in content
+        assert "PT24H" in content
+
+    def test_bpmn_has_compensated_end_event(self):
+        bpmn_path = Path(__file__).parent.parent.parent / "src" / "infrastructure" / "camunda" / "bpmn" / "campaign_lifecycle.bpmn"
+        content = bpmn_path.read_text()
+        assert 'id="end_compensated"' in content
+
+
+class TestSMSCompensationWorker:
+    """Tests for the SMS compensation external task worker."""
+
+    def test_worker_importable(self):
+        from src.infrastructure.camunda.workers.sms_compensation import handle_compensate_sms_failure
+        assert callable(handle_compensate_sms_failure)
+
+    @pytest.mark.asyncio
+    async def test_missing_variables(self):
+        from src.infrastructure.camunda.workers.sms_compensation import handle_compensate_sms_failure
+
+        task = MagicMock()
+        task.id = "task-1"
+        task.get_variable = MagicMock(return_value=None)
+
+        client = MagicMock()
+        result = await handle_compensate_sms_failure(task, client)
+        assert result["compensated"] is False
+
+    def test_worker_exported_in_init(self):
+        from src.infrastructure.camunda.workers import handle_compensate_sms_failure
+        assert callable(handle_compensate_sms_failure)
+
+
+class TestERPEscalationWorkers:
+    """Tests for ERP sync escalation external task workers."""
+
+    def test_all_workers_importable(self):
+        from src.infrastructure.camunda.workers.erp_sync_escalation import (
+            handle_log_sync_failure,
+            handle_retry_sync,
+            handle_mark_resolved,
+            handle_escalate_failure,
+            handle_send_escalation_reminder,
+        )
+        assert callable(handle_log_sync_failure)
+        assert callable(handle_retry_sync)
+        assert callable(handle_mark_resolved)
+        assert callable(handle_escalate_failure)
+        assert callable(handle_send_escalation_reminder)
+
+    @pytest.mark.asyncio
+    async def test_log_failure_missing_tenant(self):
+        from src.infrastructure.camunda.workers.erp_sync_escalation import handle_log_sync_failure
+
+        task = MagicMock()
+        task.id = "task-1"
+        task.get_variable = MagicMock(return_value=None)
+
+        client = MagicMock()
+        result = await handle_log_sync_failure(task, client)
+        assert result["retry_count"] == 0
+
+    @pytest.mark.asyncio
+    async def test_retry_sync_missing_tenant(self):
+        from src.infrastructure.camunda.workers.erp_sync_escalation import handle_retry_sync
+
+        task = MagicMock()
+        task.id = "task-2"
+        task.get_variable = MagicMock(return_value=None)
+
+        client = MagicMock()
+        result = await handle_retry_sync(task, client)
+        assert result["retry_success"] is False
+        assert result["retry_count"] == 1
+
+    @pytest.mark.asyncio
+    async def test_mark_resolved(self):
+        from src.infrastructure.camunda.workers.erp_sync_escalation import handle_mark_resolved
+
+        task = MagicMock()
+        task.id = "task-3"
+        task.get_variable = MagicMock(side_effect=lambda k: {
+            "tenant_id": str(uuid4()),
+            "source_name": "mongodb_invoices",
+        }.get(k))
+
+        client = MagicMock()
+        result = await handle_mark_resolved(task, client)
+        assert result["resolution"] == "auto_retry"
+        assert "resolved_at" in result
+
+    @pytest.mark.asyncio
+    async def test_escalate_failure_missing_tenant(self):
+        from src.infrastructure.camunda.workers.erp_sync_escalation import handle_escalate_failure
+
+        task = MagicMock()
+        task.id = "task-4"
+        task.get_variable = MagicMock(return_value=None)
+
+        client = MagicMock()
+        result = await handle_escalate_failure(task, client)
+        assert result["escalated"] is False
+
+    @pytest.mark.asyncio
+    async def test_send_reminder_missing_tenant(self):
+        from src.infrastructure.camunda.workers.erp_sync_escalation import handle_send_escalation_reminder
+
+        task = MagicMock()
+        task.id = "task-5"
+        task.get_variable = MagicMock(return_value=None)
+
+        client = MagicMock()
+        result = await handle_send_escalation_reminder(task, client)
+        assert result["reminder_sent"] is False
+
+    def test_all_workers_exported_in_init(self):
+        from src.infrastructure.camunda.workers import (
+            handle_log_sync_failure,
+            handle_retry_sync,
+            handle_mark_resolved,
+            handle_escalate_failure,
+            handle_send_escalation_reminder,
+        )
+        assert callable(handle_log_sync_failure)
+        assert callable(handle_send_escalation_reminder)
+
+
+class TestProcessOverviewSchemas:
+    """Tests for the process overview dashboard widget schemas."""
+
+    def test_process_overview_response_defaults(self):
+        from src.api.routes.processes import ProcessOverviewResponse
+
+        resp = ProcessOverviewResponse()
+        assert resp.camunda_enabled is False
+        assert resp.healthy is False
+        assert resp.process_types == []
+        assert resp.total_active == 0
+        assert resp.total_completed == 0
+        assert resp.total_failed == 0
+        assert resp.escalations_pending == 0
+        assert resp.source == "database"
+
+    def test_process_overview_response_with_data(self):
+        from src.api.routes.processes import ProcessOverviewResponse
+
+        resp = ProcessOverviewResponse(
+            camunda_enabled=True,
+            healthy=True,
+            process_types=[
+                {"type": "campaign_lifecycle", "display_name": "کمپین", "active": 3, "completed": 10, "failed": 1},
+                {"type": "funnel_journey", "display_name": "قیف", "active": 100, "completed": 5, "failed": 0},
+            ],
+            total_active=103,
+            total_completed=15,
+            total_failed=1,
+            escalations_pending=2,
+            source="camunda+database",
+        )
+        assert resp.total_active == 103
+        assert resp.escalations_pending == 2
+        assert len(resp.process_types) == 2
+
+    def test_start_escalation_request(self):
+        from src.api.routes.processes import StartEscalationRequest
+
+        req = StartEscalationRequest(
+            source_name="mongodb_invoices",
+            error_message="Connection refused",
+            max_retries=5,
+        )
+        assert req.source_name == "mongodb_invoices"
+        assert req.max_retries == 5
+
+    def test_start_escalation_request_defaults(self):
+        from src.api.routes.processes import StartEscalationRequest
+
+        req = StartEscalationRequest(
+            source_name="test",
+            error_message="error",
+        )
+        assert req.max_retries == 3
+
+    def test_start_escalation_response(self):
+        from src.api.routes.processes import StartEscalationResponse
+
+        resp = StartEscalationResponse(
+            process_instance_id="inst-1",
+            source_name="mongodb",
+            camunda_enabled=True,
+        )
+        assert resp.process_instance_id == "inst-1"
+        assert resp.fallback_used is False
+
+    def test_start_escalation_response_fallback(self):
+        from src.api.routes.processes import StartEscalationResponse
+
+        resp = StartEscalationResponse(
+            source_name="mongodb",
+            camunda_enabled=False,
+            fallback_used=True,
+        )
+        assert resp.process_instance_id is None
+        assert resp.fallback_used is True
+
+
+class TestPhase36WorkerRegistration:
+    """Tests that all Phase 36 workers are properly registered."""
+
+    def test_total_worker_count_in_init(self):
+        from src.infrastructure.camunda import workers
+        all_exported = workers.__all__
+        # Should have: 1 runner + 4 campaign + 5 user approval + 2 funnel + 5 ERP + 1 SMS comp = 18
+        assert len(all_exported) == 18
+
+    def test_erp_workers_in_all(self):
+        from src.infrastructure.camunda import workers
+        assert "handle_log_sync_failure" in workers.__all__
+        assert "handle_retry_sync" in workers.__all__
+        assert "handle_mark_resolved" in workers.__all__
+        assert "handle_escalate_failure" in workers.__all__
+        assert "handle_send_escalation_reminder" in workers.__all__
+
+    def test_sms_compensation_in_all(self):
+        from src.infrastructure.camunda import workers
+        assert "handle_compensate_sms_failure" in workers.__all__
+
+    def test_bpmn_directory_has_4_files(self):
+        bpmn_dir = Path(__file__).parent.parent.parent / "src" / "infrastructure" / "camunda" / "bpmn"
+        bpmn_files = sorted(bpmn_dir.glob("*.bpmn"))
+        assert len(bpmn_files) == 4
+        names = [f.name for f in bpmn_files]
+        assert "campaign_lifecycle.bpmn" in names
+        assert "erp_sync_escalation.bpmn" in names
+        assert "funnel_journey.bpmn" in names
+        assert "user_approval.bpmn" in names
 

@@ -139,6 +139,13 @@ async def lifespan(app: FastAPI):
                 handle_notify_user_rejected,
                 handle_send_approval_reminder,
                 handle_update_funnel_stage,
+                handle_notify_stale_stage,
+                handle_log_sync_failure,
+                handle_retry_sync,
+                handle_mark_resolved,
+                handle_escalate_failure,
+                handle_send_escalation_reminder,
+                handle_compensate_sms_failure,
             )
             runner = ExternalTaskWorkerRunner(client=_cc, settings=_cc.settings)
             # Campaign lifecycle workers
@@ -146,6 +153,7 @@ async def lifespan(app: FastAPI):
             runner.register("send-campaign-sms", handle_send_campaign_sms)
             runner.register("track-sms-delivery", handle_track_delivery)
             runner.register("measure-campaign-results", handle_measure_results)
+            runner.register("compensate-sms-failure", handle_compensate_sms_failure)
             # User approval workers
             runner.register("notify-pending-user", handle_notify_pending_user)
             runner.register("activate-approved-user", handle_activate_approved_user)
@@ -154,8 +162,15 @@ async def lifespan(app: FastAPI):
             runner.register("send-approval-reminder", handle_send_approval_reminder)
             # Funnel journey workers
             runner.register("update-funnel-stage", handle_update_funnel_stage)
+            runner.register("notify-stale-stage", handle_notify_stale_stage)
+            # ERP sync escalation workers
+            runner.register("erp-log-sync-failure", handle_log_sync_failure)
+            runner.register("erp-retry-sync", handle_retry_sync)
+            runner.register("erp-mark-resolved", handle_mark_resolved)
+            runner.register("erp-escalate-failure", handle_escalate_failure)
+            runner.register("erp-send-reminder", handle_send_escalation_reminder)
             _camunda_worker_task = asyncio.create_task(runner.run())
-            logger.info("Camunda external task worker started (10 topics)")
+            logger.info("Camunda external task worker started (17 topics)")
     except Exception as e:
         logger.warning("Camunda worker startup error (non-fatal): %s", e)
 

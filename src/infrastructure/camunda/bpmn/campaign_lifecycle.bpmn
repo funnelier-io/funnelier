@@ -16,6 +16,9 @@
   <bpmn:message id="msg_campaign_resume" name="campaign_resume" />
   <bpmn:message id="msg_campaign_cancel" name="campaign_cancel" />
 
+  <!-- Error definitions -->
+  <bpmn:error id="err_sms_send_failed" name="SMS Send Failed" errorCode="SMS_SEND_FAILED" />
+
   <bpmn:process id="campaign_lifecycle" name="Campaign Lifecycle" isExecutable="true">
 
     <!-- Start: Campaign created -->
@@ -44,12 +47,50 @@
       <bpmn:outgoing>flow_send_to_track</bpmn:outgoing>
     </bpmn:serviceTask>
 
+    <!-- Error boundary on SMS send: catches SMS_SEND_FAILED errors -->
+    <bpmn:boundaryEvent id="boundary_sms_error" name="SMS Send Error"
+                        attachedToRef="send_sms_batch">
+      <bpmn:outgoing>flow_error_to_compensate</bpmn:outgoing>
+      <bpmn:errorEventDefinition errorRef="err_sms_send_failed" />
+    </bpmn:boundaryEvent>
+
+    <!-- Compensation: handle partial send failures -->
+    <bpmn:serviceTask id="compensate_sms" name="Compensate SMS Failure"
+                      camunda:type="external" camunda:topic="compensate-sms-failure">
+      <bpmn:incoming>flow_error_to_compensate</bpmn:incoming>
+      <bpmn:outgoing>flow_compensate_to_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <!-- End: Campaign failed with compensation -->
+    <bpmn:endEvent id="end_compensated" name="Campaign Failed (Compensated)">
+      <bpmn:incoming>flow_compensate_to_end</bpmn:incoming>
+    </bpmn:endEvent>
+
     <!-- External task: Track delivery status -->
     <bpmn:serviceTask id="track_delivery" name="Track Delivery"
                       camunda:type="external" camunda:topic="track-sms-delivery">
       <bpmn:incoming>flow_send_to_track</bpmn:incoming>
       <bpmn:outgoing>flow_track_to_measure</bpmn:outgoing>
     </bpmn:serviceTask>
+
+    <!-- Stale delivery: timer if no delivery status in 24h -->
+    <bpmn:boundaryEvent id="timer_stale_delivery" name="Stale Delivery (24h)"
+                        attachedToRef="track_delivery" cancelActivity="false">
+      <bpmn:outgoing>flow_stale_delivery_to_notify</bpmn:outgoing>
+      <bpmn:timerEventDefinition>
+        <bpmn:timeDuration>PT24H</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:boundaryEvent>
+
+    <bpmn:serviceTask id="notify_stale_delivery" name="Notify: Stale Delivery"
+                      camunda:type="external" camunda:topic="notify-stale-stage">
+      <bpmn:incoming>flow_stale_delivery_to_notify</bpmn:incoming>
+      <bpmn:outgoing>flow_stale_delivery_end</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:endEvent id="end_stale_delivery">
+      <bpmn:incoming>flow_stale_delivery_end</bpmn:incoming>
+    </bpmn:endEvent>
 
     <!-- External task: Measure campaign results -->
     <bpmn:serviceTask id="measure_results" name="Measure Results"
@@ -80,6 +121,12 @@
     <bpmn:sequenceFlow id="flow_send_to_track" sourceRef="send_sms_batch" targetRef="track_delivery" />
     <bpmn:sequenceFlow id="flow_track_to_measure" sourceRef="track_delivery" targetRef="measure_results" />
     <bpmn:sequenceFlow id="flow_measure_to_complete" sourceRef="measure_results" targetRef="end_completed" />
+    <!-- Compensation flows -->
+    <bpmn:sequenceFlow id="flow_error_to_compensate" sourceRef="boundary_sms_error" targetRef="compensate_sms" />
+    <bpmn:sequenceFlow id="flow_compensate_to_end" sourceRef="compensate_sms" targetRef="end_compensated" />
+    <!-- Stale delivery flows -->
+    <bpmn:sequenceFlow id="flow_stale_delivery_to_notify" sourceRef="timer_stale_delivery" targetRef="notify_stale_delivery" />
+    <bpmn:sequenceFlow id="flow_stale_delivery_end" sourceRef="notify_stale_delivery" targetRef="end_stale_delivery" />
 
   </bpmn:process>
 
