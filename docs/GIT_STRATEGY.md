@@ -9,9 +9,9 @@
 
 | Item | Status |
 |---|---|
-| Local commits | 36 (all on `master`) |
+| Local commits | 38 (all on `main`) |
 | Remote | **None configured** |
-| Branches | `master` only |
+| Branches | `main` + `dev` |
 | Tags | None |
 | Uncommitted work | Phase 36 partial (13 files) |
 | CI workflows | Exist (`.github/workflows/ci.yml`, `cd.yml`) but never triggered |
@@ -254,7 +254,7 @@ git checkout dev && git cherry-pick <commit> && git push
 
 - [ ] Commit or stash Phase 36 uncommitted work
 - [ ] Create GitHub repository (private)
-- [ ] Rename `master` → `main`
+- [x] Rename `master` → `main`
 - [ ] Push all history to GitHub
 - [ ] Tag `v0.1.0`
 - [ ] Create `dev` branch and push

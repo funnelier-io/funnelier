@@ -11,8 +11,8 @@
 
 | Metric | Value |
 |---|---|
-| Total Commits | 38 (on `master`) |
-| Current Branch | `master` + `dev` (remote: `funnelier-io/funnelier`) |
+| Total Commits | 39 (on `main`) |
+| Current Branch | `main` + `dev` (remote: `funnelier-io/funnelier`) |
 | Tags | `v0.1.0` |
 | Phases Completed | 36 of 36 planned |
 | Backend Unit Tests | 447+ passing |
@@ -83,7 +83,7 @@ None — all phases committed.
 | ✅ Set up GitHub remote, push all history → `funnelier-io/funnelier` | Apr 2026 |
 | ✅ Establish branching strategy (see GIT_STRATEGY.md) | Apr 2026 |
 | ✅ Tag `v0.1.0` baseline release | Apr 2026 |
-| ✅ Create `dev` branch, enable branch protection on `master` | Apr 2026 |
+| ✅ Create `dev` branch, enable branch protection on `main` | Apr 2026 |
 | API endpoint audit & OpenAPI doc review | May 2026 |
 | Frontend build audit (dead code, unused deps) | May 2026 |
 | Test coverage report & gap analysis | May–Jun 2026 |
@@ -141,7 +141,7 @@ Frontend dashboard widget and dedicated page showing:
 ## 📎 Notes
 
 - **GitHub remote**: `funnelier-io/funnelier` (public). All 38 commits pushed.
-- `master` branch is protected: requires 1 PR review, no force pushes.
+- `main` branch is protected: requires 1 PR review, no force pushes.
 - `dev` branch created for feature development.
 - CI/CD workflows (`.github/workflows/ci.yml`, `cd.yml`) exist but have never been triggered.
 - K8s manifests exist but are untested against a real cluster.
