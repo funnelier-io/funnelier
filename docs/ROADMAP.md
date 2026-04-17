@@ -84,8 +84,8 @@ None — all phases committed.
 | ✅ Establish branching strategy (see GIT_STRATEGY.md) | Apr 2026 |
 | ✅ Tag `v0.1.0` baseline release | Apr 2026 |
 | ✅ Create `dev` branch, enable branch protection on `main` | Apr 2026 |
-| API endpoint audit & OpenAPI doc review | May 2026 |
-| Frontend build audit (dead code, unused deps) | May 2026 |
+| API endpoint audit & OpenAPI doc review | ✅ Apr 2026 |
+| Frontend build audit (dead code, unused deps) | ✅ Apr 2026 |
 | Test coverage report & gap analysis | May–Jun 2026 |
 
 ### ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
