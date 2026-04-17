@@ -532,7 +532,7 @@ async def compare_salesperson_performance(
     )
 
 
-@router.get("/performance/leaderboard")
+@router.get("/performance/leaderboard", response_model=list)
 async def get_performance_leaderboard(
     tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
     session: Annotated[AsyncSession, Depends(get_db_session)],

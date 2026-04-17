@@ -434,7 +434,7 @@ async def import_voip_json(
 # Scan existing leads-numbers folder
 # ============================================================================
 
-@router.get("/leads/scan")
+@router.get("/leads/scan", response_model=dict)
 async def scan_lead_files(
     tenant_id: UUID = Depends(get_current_tenant_id),
 ):
@@ -454,7 +454,7 @@ async def scan_lead_files(
     return {"folder": str(folder), "files": files, "count": len(files)}
 
 
-@router.get("/calls/scan")
+@router.get("/calls/scan", response_model=dict)
 async def scan_call_log_files(
     tenant_id: UUID = Depends(get_current_tenant_id),
 ):
@@ -740,7 +740,7 @@ class ImportLogResponse(BaseModel):
     created_at: str | None = None
 
 
-@router.get("/history")
+@router.get("/history", response_model=list)
 async def get_import_history(
     tenant_id: UUID = Depends(get_current_tenant_id),
     import_type: str | None = Query(None),
@@ -781,7 +781,7 @@ async def get_import_history(
         ]
 
 
-@router.get("/stats")
+@router.get("/stats", response_model=dict)
 async def get_import_stats(
     tenant_id: UUID = Depends(get_current_tenant_id),
 ):

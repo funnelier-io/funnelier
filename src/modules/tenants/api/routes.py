@@ -326,7 +326,7 @@ async def delete_data_source(
     pass
 
 
-@router.post("/me/data-sources/{source_id}/test")
+@router.post("/me/data-sources/{source_id}/test", response_model=dict)
 async def test_data_source_connection(
     source_id: UUID,
     tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
@@ -341,7 +341,7 @@ async def test_data_source_connection(
     }
 
 
-@router.post("/me/data-sources/{source_id}/sync")
+@router.post("/me/data-sources/{source_id}/sync", response_model=dict)
 async def trigger_data_source_sync(
     source_id: UUID,
     tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
@@ -395,7 +395,7 @@ async def create_integration(
     )
 
 
-@router.post("/me/integrations/{integration_id}/test")
+@router.post("/me/integrations/{integration_id}/test", response_model=dict)
 async def test_integration(
     integration_id: UUID,
     tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
@@ -463,7 +463,7 @@ async def get_billing_info(
     )
 
 
-@router.get("/me/billing/plans")
+@router.get("/me/billing/plans", response_model=list)
 async def list_available_plans(
     tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
 ):
@@ -475,7 +475,7 @@ async def list_available_plans(
     }
 
 
-@router.get("/me/usage/detailed")
+@router.get("/me/usage/detailed", response_model=dict)
 async def get_detailed_usage(
     tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
 ):

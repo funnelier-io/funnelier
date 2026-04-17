@@ -416,7 +416,7 @@ async def delete_data_source(
 #  Connection Test
 # ════════════════════════════════════════════════════════════════════
 
-@router.post("/sources/{source_id}/test")
+@router.post("/sources/{source_id}/test", response_model=dict)
 async def test_connection(
     source_id: UUID,
     tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
@@ -460,7 +460,7 @@ async def test_connection(
 #  Trigger Sync
 # ════════════════════════════════════════════════════════════════════
 
-@router.post("/sources/{source_id}/sync")
+@router.post("/sources/{source_id}/sync", response_model=dict)
 async def trigger_sync(
     source_id: UUID,
     tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
@@ -671,7 +671,7 @@ async def get_source_sync_status(
 #  Quick sync (no data source registration needed)
 # ════════════════════════════════════════════════════════════════════
 
-@router.post("/quick-sync")
+@router.post("/quick-sync", response_model=dict)
 async def quick_sync(
     tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
     provider: str = Query(default="mock"),
@@ -752,7 +752,7 @@ async def update_sync_schedule(
     )
 
 
-@router.get("/dedup-strategies")
+@router.get("/dedup-strategies", response_model=list)
 async def list_dedup_strategies():
     """List available deduplication strategies for data sync."""
     return {

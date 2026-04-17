@@ -675,7 +675,7 @@ async def get_contact_by_phone(
 # Statistics Endpoints
 # ============================================================================
 
-@router.get("/stats/summary")
+@router.get("/stats/summary", response_model=dict)
 async def get_leads_summary(
     repo: Annotated[ContactRepository, Depends(get_contact_repository)],
 ):
@@ -692,7 +692,7 @@ async def get_leads_summary(
     }
 
 
-@router.get("/stats/by-salesperson")
+@router.get("/stats/by-salesperson", response_model=list)
 async def get_leads_by_salesperson(
     tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
     repo: Annotated[ContactRepository, Depends(get_contact_repository)],

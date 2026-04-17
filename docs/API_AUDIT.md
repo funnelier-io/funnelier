@@ -47,27 +47,10 @@
 
 ### 🔴 High Priority
 
-#### H1. Missing `response_model` on 43 endpoints
-Endpoints without `response_model` return untyped JSON, which means:
-- No OpenAPI schema generation for response body
-- No automatic Pydantic validation of outgoing data
-- Incomplete Swagger/Redoc documentation
-
-**Affected modules** (count):
-- Export (7) — all quick-export and custom report endpoints
-- Sales/ERP (6) — test, sync, quick-sync, dedup-strategies
-- Processes (4) — variables, messages, history, deployments
-- Leads (2) — stats/summary, stats/by-salesperson
-- Campaigns (4) — preview-recipients, select-winner, suggestions, recommended templates
-- Communications (2) — template variables, by-segment
-- ETL (4) — scans, history, stats
-- Tenants (4) — data source test/sync, plans, usage/detailed
-- Auth (2) — password change, reset-password
-- Team (1) — performance/leaderboard
-- Notifications (1) — push/subscribe
-- Cache (2) — invalidate, stats
-
-**Fix**: Add `response_model` to each or use `responses={}` for file downloads.
+#### ~~H1. Missing `response_model` on 43 endpoints~~ ✅ FIXED
+All 264 endpoints now have `response_model`, `status_code=204`, or `responses=` annotations.
+- 39 endpoints: added `response_model=dict` or `response_model=list`
+- 8 export endpoints: added `responses={200: {"content": {"application/octet-stream": {}}}}` for file downloads
 
 #### H2. Webhook route uses `webhook_router` variable (not `router`)
 `src/modules/communications/api/webhook_routes.py` uses `webhook_router` instead of `router`, which is why automated grep missed it. The endpoint exists and works (`POST /api/v1/webhooks/kavenegar/delivery`). No action needed — just a naming inconsistency for audit purposes.

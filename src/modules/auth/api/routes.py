@@ -300,7 +300,7 @@ async def get_me(user: Annotated[User, Depends(require_auth)]):
     return _user_to_response(user)
 
 
-@router.put("/me/password")
+@router.put("/me/password", response_model=dict)
 async def change_password(
     user: Annotated[User, Depends(require_auth)],
     request: ChangePasswordRequest,
@@ -551,7 +551,7 @@ async def update_user(
     return _user_to_response(updated)
 
 
-@router.post("/users/{user_id}/reset-password", status_code=200)
+@router.post("/users/{user_id}/reset-password", response_model=dict, status_code=200)
 async def reset_user_password(
     user_id: UUID,
     request: ResetPasswordRequest,

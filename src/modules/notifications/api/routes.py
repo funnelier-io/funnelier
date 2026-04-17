@@ -305,7 +305,7 @@ async def update_preferences(
 # Web Push Subscription
 # ═══════════════════════════════════════════════════════════════════════
 
-@router.post("/push/subscribe", status_code=201)
+@router.post("/push/subscribe", response_model=dict, status_code=201)
 async def subscribe_push(
     body: PushSubscriptionRequest,
     session: AsyncSession = Depends(get_db_session),

@@ -86,7 +86,7 @@ async def get_all_columns():
 # Tabular export: contacts, invoices, call_logs, sms_logs, payments
 # ═════════════════════════════════════════════════════════════════════════
 
-@router.post("/download", summary="Export data to CSV/XLSX")
+@router.post("/download", summary="Export data to CSV/XLSX", responses={200: {"content": {"application/octet-stream": {}}, "description": "File download"}})
 async def export_download(
     body: ExportRequest,
     session: AsyncSession = Depends(get_db_session),
@@ -187,7 +187,7 @@ async def _export_summary(
 # Quick export endpoints (GET-based, for toolbar buttons)
 # ═════════════════════════════════════════════════════════════════════════
 
-@router.get("/contacts", summary="Quick export contacts to XLSX")
+@router.get("/contacts", summary="Quick export contacts to XLSX", responses={200: {"content": {"application/octet-stream": {}}, "description": "File download"}})
 async def export_contacts(
     session: AsyncSession = Depends(get_db_session),
     tenant_id: UUID = Depends(get_current_tenant_id),
@@ -227,7 +227,7 @@ async def export_contacts(
     )
 
 
-@router.get("/invoices", summary="Quick export invoices to XLSX")
+@router.get("/invoices", summary="Quick export invoices to XLSX", responses={200: {"content": {"application/octet-stream": {}}, "description": "File download"}})
 async def export_invoices(
     session: AsyncSession = Depends(get_db_session),
     tenant_id: UUID = Depends(get_current_tenant_id),
@@ -263,7 +263,7 @@ async def export_invoices(
     )
 
 
-@router.get("/call-logs", summary="Quick export call logs to XLSX")
+@router.get("/call-logs", summary="Quick export call logs to XLSX", responses={200: {"content": {"application/octet-stream": {}}, "description": "File download"}})
 async def export_call_logs(
     session: AsyncSession = Depends(get_db_session),
     tenant_id: UUID = Depends(get_current_tenant_id),
@@ -299,7 +299,7 @@ async def export_call_logs(
     )
 
 
-@router.get("/sms-logs", summary="Quick export SMS logs to XLSX")
+@router.get("/sms-logs", summary="Quick export SMS logs to XLSX", responses={200: {"content": {"application/octet-stream": {}}, "description": "File download"}})
 async def export_sms_logs(
     session: AsyncSession = Depends(get_db_session),
     tenant_id: UUID = Depends(get_current_tenant_id),
@@ -335,7 +335,7 @@ async def export_sms_logs(
     )
 
 
-@router.get("/payments", summary="Quick export payments to XLSX")
+@router.get("/payments", summary="Quick export payments to XLSX", responses={200: {"content": {"application/octet-stream": {}}, "description": "File download"}})
 async def export_payments(
     session: AsyncSession = Depends(get_db_session),
     tenant_id: UUID = Depends(get_current_tenant_id),
@@ -375,7 +375,7 @@ async def export_payments(
 # Summary / PDF report
 # ═════════════════════════════════════════════════════════════════════════
 
-@router.get("/report/summary", summary="Generate full summary report (PDF/XLSX)")
+@router.get("/report/summary", summary="Generate full summary report (PDF/XLSX)", responses={200: {"content": {"application/octet-stream": {}}, "description": "File download"}})
 async def export_summary_report(
     session: AsyncSession = Depends(get_db_session),
     tenant_id: UUID = Depends(get_current_tenant_id),
@@ -391,7 +391,7 @@ async def export_summary_report(
 # Custom Report Builder
 # ═════════════════════════════════════════════════════════════════════════
 
-@router.post("/custom", summary="Build and download a custom report")
+@router.post("/custom", summary="Build and download a custom report", responses={200: {"content": {"application/octet-stream": {}}, "description": "File download"}})
 async def export_custom_report(
     body: CustomReportRequest,
     session: AsyncSession = Depends(get_db_session),

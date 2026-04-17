@@ -14,7 +14,7 @@ from src.api.dependencies import get_current_tenant_id
 router = APIRouter(prefix="/cache", tags=["cache"])
 
 
-@router.delete("/invalidate")
+@router.delete("/invalidate", response_model=dict)
 async def invalidate_cache(
     tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
     prefix: str = "*",
@@ -25,7 +25,7 @@ async def invalidate_cache(
     return {"deleted": deleted, "tenant_id": str(tenant_id), "prefix": prefix}
 
 
-@router.get("/stats")
+@router.get("/stats", response_model=dict)
 async def cache_stats(
     tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
 ):

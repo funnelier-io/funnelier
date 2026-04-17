@@ -388,7 +388,7 @@ async def preview_template(
     )
 
 
-@router.get("/templates/variables")
+@router.get("/templates/variables", response_model=dict)
 async def list_template_variables():
     """List supported template variables with descriptions."""
     return {
@@ -513,7 +513,7 @@ async def get_template_performance(
     )
 
 
-@router.get("/templates/by-segment/{segment}")
+@router.get("/templates/by-segment/{segment}", response_model=list)
 async def get_templates_for_segment(
     segment: str,
     repo: Annotated[SMSTemplateRepository, Depends(get_sms_template_repository)],
@@ -702,7 +702,7 @@ async def sync_voip_logs(
     return SyncVoIPLogsResponse(total_fetched=0, new_records=0, updated_records=0)
 
 
-@router.post("/voip/import-json")
+@router.post("/voip/import-json", response_model=dict)
 async def import_voip_logs_from_json(
     tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
     file: UploadFile = File(...),

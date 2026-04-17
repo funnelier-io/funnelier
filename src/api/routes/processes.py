@@ -260,7 +260,7 @@ async def get_process_instance(
         raise HTTPException(status_code=503, detail=str(e))
 
 
-@router.get("/instances/{instance_id}/variables")
+@router.get("/instances/{instance_id}/variables", response_model=dict)
 async def get_process_variables(
     instance_id: str,
     tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
@@ -291,7 +291,7 @@ async def cancel_process_instance(
         raise HTTPException(status_code=503, detail=str(e))
 
 
-@router.post("/messages")
+@router.post("/messages", response_model=dict)
 async def correlate_message(
     tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
     request: CorrelateMessageRequest,
@@ -318,7 +318,7 @@ async def correlate_message(
         raise HTTPException(status_code=503, detail=str(e))
 
 
-@router.get("/instances/{instance_id}/history")
+@router.get("/instances/{instance_id}/history", response_model=list)
 async def get_process_history(
     instance_id: str,
     tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
@@ -335,7 +335,7 @@ async def get_process_history(
         raise HTTPException(status_code=503, detail=str(e))
 
 
-@router.get("/deployments")
+@router.get("/deployments", response_model=list)
 async def list_deployments(
     tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
 ):

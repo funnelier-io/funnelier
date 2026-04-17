@@ -182,7 +182,7 @@ async def get_funnel_trend(
     )
 
 
-@router.get("/funnel/by-source")
+@router.get("/funnel/by-source", response_model=dict)
 async def get_funnel_by_source(
     tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
     session: Annotated[AsyncSession, Depends(get_db_session)],
@@ -594,7 +594,7 @@ async def create_alert_rule(
     )
 
 
-@router.get("/alerts/rules")
+@router.get("/alerts/rules", response_model=list)
 async def list_alert_rules(
     tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
     session: Annotated[AsyncSession, Depends(get_db_session)],

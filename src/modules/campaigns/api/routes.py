@@ -396,7 +396,7 @@ async def get_campaign_recipients(
     )
 
 
-@router.post("/{campaign_id}/preview-recipients")
+@router.post("/{campaign_id}/preview-recipients", response_model=dict)
 async def preview_campaign_recipients(
     campaign_id: UUID,
     tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
@@ -469,7 +469,7 @@ async def get_ab_test_results(
     )
 
 
-@router.post("/{campaign_id}/select-winner")
+@router.post("/{campaign_id}/select-winner", response_model=dict)
 async def select_ab_test_winner(
     campaign_id: UUID,
     tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
@@ -492,7 +492,7 @@ async def select_ab_test_winner(
 # Campaign Templates & Suggestions
 # ============================================================================
 
-@router.get("/suggestions/for-segment/{segment}")
+@router.get("/suggestions/for-segment/{segment}", response_model=dict)
 async def get_campaign_suggestions_for_segment(
     segment: str,
     tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
@@ -539,7 +539,7 @@ async def get_campaign_suggestions_for_segment(
     })
 
 
-@router.get("/templates/recommended")
+@router.get("/templates/recommended", response_model=list)
 async def get_recommended_templates(
     tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
     segment: str | None = Query(default=None),

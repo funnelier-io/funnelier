@@ -206,7 +206,7 @@ async def get_product_price_history(
     )
 
 
-@router.post("/products/update-prices")
+@router.post("/products/update-prices", response_model=dict)
 async def bulk_update_prices(
     repo: Annotated[ProductRepository, Depends(get_product_repository)],
     request: UpdatePricesRequest,
@@ -217,7 +217,7 @@ async def bulk_update_prices(
     return {"updated_count": count, "errors": []}
 
 
-@router.post("/products/import-catalog")
+@router.post("/products/import-catalog", response_model=dict)
 async def import_product_catalog(
     tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
     file: UploadFile = File(...),
@@ -566,7 +566,7 @@ async def sync_data_source(
     )
 
 
-@router.post("/data-sources/{source_id}/test")
+@router.post("/data-sources/{source_id}/test", response_model=dict)
 async def test_data_source_connection(source_id: UUID, tenant_id: Annotated[UUID, Depends(get_current_tenant_id)]):
     """Test connection to a MongoDB data source."""
     from src.modules.sales.infrastructure.crm_connector import CRMSyncService
@@ -585,7 +585,7 @@ async def test_data_source_connection(source_id: UUID, tenant_id: Annotated[UUID
     return {"success": success, "message": message}
 
 
-@router.post("/crm/sync")
+@router.post("/crm/sync", response_model=dict)
 async def sync_crm_data(
     tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
     mongo_uri: str = Query(default="mongodb://mongo:mongo@localhost:27017"),
@@ -607,7 +607,7 @@ async def sync_crm_data(
     return results
 
 
-@router.get("/crm/overview")
+@router.get("/crm/overview", response_model=dict)
 async def crm_overview(
     tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
     mongo_uri: str = Query(default="mongodb://mongo:mongo@localhost:27017"),
