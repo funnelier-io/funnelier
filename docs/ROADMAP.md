@@ -11,13 +11,13 @@
 
 | Metric | Value |
 |---|---|
-| Total Commits | 36 (on `master`) |
+| Total Commits | 37 (on `master`) |
 | Current Branch | `master` (single branch, no remote) |
 | Tags | None |
-| Phases Completed | 35 of 36 planned |
-| Backend Unit Tests | 447 passing |
+| Phases Completed | 36 of 36 planned |
+| Backend Unit Tests | 447+ passing |
 | Frontend Pages | 14+ dashboard pages |
-| Unstaged Work | Phase 36 partial (BPMN workers, compensation, escalation) |
+| Unstaged Work | None — all phases committed |
 
 ---
 
@@ -61,19 +61,13 @@
 | 33 | Campaign Workflow | BPMN process, 4 workers, Camunda-or-fallback | 379 unit |
 | 34 | User Approval Workflow | BPMN, 5 workers, 48h timer, admin review task | 402 unit |
 | 35 | Funnel Journey | Message correlation, DB fallback, journey API | 447 unit |
+| 36 | Advanced Process Features | SMS compensation, stale-stage notify, ERP escalation BPMN | 447+ unit |
 
 ---
 
 ## 🔧 In Progress (Uncommitted)
 
-### Phase 36: Camunda BPMS — Advanced Process Features (partial)
-Files modified/added but not yet committed:
-- `src/infrastructure/camunda/workers/sms_compensation.py` — SMS failure compensation worker
-- `src/infrastructure/camunda/workers/stale_stage_notify.py` — Stale delivery notification worker
-- `src/infrastructure/camunda/workers/erp_sync_escalation.py` — ERP sync escalation worker
-- `src/infrastructure/camunda/bpmn/erp_sync_escalation.bpmn` — ERP escalation process
-- Updates to `campaign_lifecycle.bpmn`, `funnel_journey.bpmn`, `deployment.py`, workers init
-- Updates to `main.py`, `processes.py`, `journey_routes.py`, tests
+None — all phases committed.
 
 ---
 
@@ -85,11 +79,10 @@ Files modified/added but not yet committed:
 
 | Milestone | Target |
 |---|---|
-| Complete Phase 36 (Advanced Process Features) | Apr 2026 |
+| ✅ Complete Phase 36 (Advanced Process Features) | Apr 2026 |
 | Set up GitHub remote, push all history | Apr 2026 |
 | Establish branching strategy (see GIT_STRATEGY.md) | Apr 2026 |
 | Tag `v0.1.0` baseline release | Apr 2026 |
-| Merge uncommitted Phase 36 work | Apr 2026 |
 | Create `dev` branch, enable branch protection | Apr 2026 |
 | API endpoint audit & OpenAPI doc review | May 2026 |
 | Frontend build audit (dead code, unused deps) | May 2026 |
@@ -106,8 +99,18 @@ Files modified/added but not yet committed:
 | Phase 39: Campaign A/B split testing (live, not calculator) | Aug 2026 |
 | Phase 40: Real-time dashboard with WebSocket push | Aug–Sep 2026 |
 | Phase 41: Mobile-responsive audit & PWA | Sep 2026 |
+| Phase 42: Camunda Process Monitoring Dashboard | Sep 2026 |
 | Frontend E2E test expansion (target: 80+ Playwright tests) | Ongoing |
 | Tag `v0.2.0` | Sep 2026 |
+
+#### Phase 42: Camunda Process Monitoring Dashboard (NEW)
+Frontend dashboard widget and dedicated page showing:
+- Active / completed / failed process instance counts per workflow type
+- Campaign pipeline visual — which BPMN step each campaign is at
+- Stale process alerts — campaigns or contacts stuck beyond expected duration
+- ERP escalation status overview with resolution actions
+- Quick actions: pause / resume / cancel campaigns from the UI
+- Links to Camunda Cockpit for detailed drill-down (admin only)
 
 ### ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ### Q4 2026 — Production Readiness
@@ -137,7 +140,7 @@ Files modified/added but not yet committed:
 
 ## 📎 Notes
 
-- **No GitHub remote** is currently configured. All 36 commits are local only.
+- **No GitHub remote** is currently configured. All 37 commits are local only.
 - The project has been developed on a single `master` branch with no PRs or code review.
 - CI/CD workflows (`.github/workflows/ci.yml`, `cd.yml`) exist but have never been triggered.
 - K8s manifests exist but are untested against a real cluster.
