@@ -96,6 +96,7 @@ jobs:
         run: |
           python -m pytest tests/unit/ -v --tb=short \
             --cov=src --cov-report=xml --cov-report=term-missing \
+            --cov-fail-under=65 \
             -q --no-header
         env:
           ENV: test

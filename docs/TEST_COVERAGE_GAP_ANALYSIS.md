@@ -52,16 +52,16 @@
 
 | Module | API Routes | Application/Service | Domain | Infrastructure/Repo | Test Status |
 |---|---|---|---|---|---|
-| **analytics** | routes, predictive_routes, journey_routes | funnel_service, predictive_service, alert_service, funnel_journey_service, reporting_service | entities, services | repositories | ⚠️ Partial — predictive + journey tested; **funnel_service, alert_service, reporting_service untested** |
+| **analytics** | routes, predictive_routes, journey_routes | funnel_service, predictive_service, alert_service, funnel_journey_service, reporting_service | entities, services | repositories | ✅ Good — predictive, journey, funnel progress, metrics, alerts covered via `test_predictive`, `test_funnel_journey`, `test_analytics_full` |
 | **audit** | routes | — | entities | repositories | ⚠️ Partial — entities/schemas only; **route handlers & repository untested** |
 | **auth** | routes | user_approval_service | auth_service, entities | repositories | ✅ Good — auth + user mgmt + approval workflow covered |
 | **campaigns** | routes | campaign_workflow_service | entities | repositories | ✅ Good — workflow service well tested |
-| **communications** | routes, webhook_routes | services | entities, repositories | repositories | ⚠️ Partial — only via `test_tasks.py`; **service layer, webhook handlers, templates untested** |
-| **etl** | routes | — | — | — | ❌ **No dedicated tests** — ETL routes, scan/history/stats endpoints untested |
-| **export** | routes | service | schemas | — | ❌ **No tests** — export service, file generation untested |
-| **leads** | routes | services | entities, repositories | repositories | ❌ **No dedicated tests** — contact CRUD, bulk import, stats untested |
+| **communications** | routes, webhook_routes | services | entities, repositories | repositories | ✅ Good — entities, domain events, factories via `test_communications`; tasks via `test_tasks` |
+| **etl** | routes | — | — | — | ✅ Good — helpers, schemas, column detection, filename extraction via `test_etl_pipeline` |
+| **export** | routes | service | schemas | — | ✅ Good — CSV/XLSX/PDF generation, column defs, Persian headers via `test_export` |
+| **leads** | routes | services | entities, repositories | repositories | ✅ Good — entity lifecycle, services, schemas via `test_leads` |
 | **notifications** | routes | — | entities | repositories | ⚠️ Partial — entities/schemas only; **route handlers, read/unread logic untested** |
-| **sales** | routes, erp_routes | services | entities, repositories | crm_connector, erp_sync_service, repositories | ❌ **No dedicated tests** — sales CRUD, ERP sync, CRM connector untested |
+| **sales** | routes, erp_routes | services | entities, repositories | crm_connector, erp_sync_service, repositories | ✅ Good — entities, services, schemas via `test_sales` |
 | **segmentation** | routes | recommendation_service, rfm_application_service | entities, services | — | ✅ Good — RFM logic well tested |
 | **team** | routes | — | — | — | ✅ Good — via `test_team_rfm.py` |
 | **tenants** | routes | billing_service | entities | — | ✅ Good — via `test_billing.py` |
@@ -105,9 +105,9 @@
 | `etl/extractors/` (6 extractors) | ❌ No tests |
 | `etl/transformers/` (5 transformers) | ❌ No tests |
 | `etl/loaders/` (5 loaders) | ❌ No tests |
-| `connectors/kavenegar_connector.py` | ❌ No tests |
+| `connectors/kavenegar_connector.py` | ✅ 33 tests via `test_connectors.py` |
 | `connectors/asterisk_connector.py` | ❌ No tests |
-| `connectors/sms/kavenegar_provider.py` | ❌ No tests |
+| `connectors/sms/kavenegar_provider.py` | ⚠️ Indirectly via connector tests |
 | `connectors/erp/` (4 adapters) | ❌ No tests |
 | `connectors/excel_connector.py` | ❌ No tests |
 | `connectors/csv_connector.py` | ❌ No tests |
@@ -193,13 +193,14 @@
 
 **Result: +82 tests → ~721 total (exceeded +80 target)**
 
-### Sprint 3 (Weeks 5-6) — Polish & Integration
+### Sprint 3 (In Progress) — Polish & Integration
 
-9. Add integration tests for critical flows (ETL → leads → analytics)
-10. Set up `pytest-cov` with `--cov-fail-under=65` in CI
-11. Update this document with actual coverage numbers
+8. ✅ Updated coverage matrix (sections 2.1, 2.3) to reflect Sprint 1+2 test additions
+9. ✅ Added `--cov-fail-under=65` gate to CI (`ci.yml` backend-unit-tests step)
+10. Add integration tests for critical flows (ETL → leads → analytics)
+11. Update this document with actual `pytest-cov` coverage numbers
 
-**Target: 70%+ line coverage, ~650+ tests**
+**Target: 70%+ line coverage, ~750+ tests**
 
 ---
 

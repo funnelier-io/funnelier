@@ -89,7 +89,7 @@ None — all phases committed.
 | Test coverage report & gap analysis | ✅ Apr 2026 |
 | Sprint 1: P0 test gaps closed (ETL, leads, sales, export) | ✅ Apr 18, 2026 (+143 tests) |
 | Sprint 2: P1 test gaps closed (communications, analytics, connectors) | ✅ Apr 18, 2026 (+82 tests) |
-| Sprint 3: Integration tests + pytest-cov CI gate at 65% | May 2026 |
+| Sprint 3: Integration tests + pytest-cov CI gate at 65% | ⏳ CI gate added Apr 19; integration tests May 2026 |
 
 ### ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ### Q3 2026 — Feature Hardening & UX Polish
