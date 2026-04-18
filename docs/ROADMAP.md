@@ -15,7 +15,7 @@
 | Current Branch | `main` + `dev` (remote: `funnelier-io/funnelier`) |
 | Tags | `v0.1.0` |
 | Phases Completed | 36 of 36 planned |
-| Backend Unit Tests | 639+ (Sprint 1 gap closure: +143) |
+| Backend Unit Tests | 721+ (Sprint 1: +143, Sprint 2: +82) |
 | Frontend Pages | 14+ dashboard pages |
 | Unstaged Work | None — all phases committed |
 
@@ -88,8 +88,8 @@ None — all phases committed.
 | Frontend build audit (dead code, unused deps) | ✅ Apr 2026 |
 | Test coverage report & gap analysis | ✅ Apr 2026 |
 | Sprint 1: P0 test gaps closed (ETL, leads, sales, export) | ✅ Apr 18, 2026 (+143 tests) |
-| Sprint 2: P1 test gaps (communications, analytics, connectors) | May 2026 |
-| Sprint 3: Integration tests + pytest-cov CI gate at 65% | May–Jun 2026 |
+| Sprint 2: P1 test gaps closed (communications, analytics, connectors) | ✅ Apr 18, 2026 (+82 tests) |
+| Sprint 3: Integration tests + pytest-cov CI gate at 65% | May 2026 |
 
 ### ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ### Q3 2026 — Feature Hardening & UX Polish
