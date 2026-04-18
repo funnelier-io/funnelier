@@ -7,7 +7,7 @@
 
 ---
 
-## 📊 Current State Summary
+##  Current State Summary
 
 | Metric | Value |
 |---|---|
@@ -15,7 +15,7 @@
 | Current Branch | `main` + `dev` (remote: `funnelier-io/funnelier`) |
 | Tags | `v0.1.0` |
 | Phases Completed | 36 of 36 planned |
-| Backend Unit Tests | 447+ passing |
+| Backend Unit Tests | 639+ (Sprint 1 gap closure: +143) |
 | Frontend Pages | 14+ dashboard pages |
 | Unstaged Work | None — all phases committed |
 
@@ -65,13 +65,13 @@
 
 ---
 
-## 🔧 In Progress (Uncommitted)
+##  In Progress (Uncommitted)
 
 None — all phases committed.
 
 ---
 
-## 🗺️ Upcoming Roadmap
+## ️ Upcoming Roadmap
 
 ### ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ### Q2 2026 — Stabilization & Git Hygiene
@@ -86,7 +86,10 @@ None — all phases committed.
 | ✅ Create `dev` branch, enable branch protection on `main` | Apr 2026 |
 | API endpoint audit & OpenAPI doc review | ✅ Apr 2026 |
 | Frontend build audit (dead code, unused deps) | ✅ Apr 2026 |
-| Test coverage report & gap analysis | May–Jun 2026 |
+| Test coverage report & gap analysis | ✅ Apr 2026 |
+| Sprint 1: P0 test gaps closed (ETL, leads, sales, export) | ✅ Apr 18, 2026 (+143 tests) |
+| Sprint 2: P1 test gaps (communications, analytics, connectors) | May 2026 |
+| Sprint 3: Integration tests + pytest-cov CI gate at 65% | May–Jun 2026 |
 
 ### ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ### Q3 2026 — Feature Hardening & UX Polish
@@ -134,11 +137,11 @@ Frontend dashboard widget and dedicated page showing:
 | Beta program with 3-5 pilot tenants | Jan 2027 |
 | Feedback iteration & bug fixes | Jan–Feb 2027 |
 | Operations runbook & on-call docs | Feb 2027 |
-| Tag `v1.0.0` 🚀 **Production Launch** | Mar 2027 |
+| Tag `v1.0.0`  **Production Launch** | Mar 2027 |
 
 ---
 
-## 📎 Notes
+##  Notes
 
 - **GitHub remote**: `funnelier-io/funnelier` (public). All 38 commits pushed.
 - `main` branch is protected: requires 1 PR review, no force pushes.
