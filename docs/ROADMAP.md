@@ -11,12 +11,12 @@
 
 | Metric | Value |
 |---|---|
-| Total Commits | 39 (on `main`) |
+| Total Commits | 43 (on `main`) |
 | Current Branch | `main` + `dev` (remote: `funnelier-io/funnelier`) |
 | Tags | `v0.1.0` |
-| Phases Completed | 36 of 36 planned |
-| Backend Unit Tests | 721+ (Sprint 1: +143, Sprint 2: +82, Sprint 3: +22 integration) |
-| Frontend Pages | 14+ dashboard pages |
+| Phases Completed | 37 of 37 planned |
+| Backend Unit Tests | 750 (Sprint 1: +143, Sprint 2: +82, Sprint 3: +22 integration) |
+| Frontend Pages | 15+ dashboard pages + onboarding wizard |
 | Unstaged Work | None — all phases committed |
 
 ---
@@ -144,7 +144,7 @@ Frontend dashboard widget and dedicated page showing:
 
 ##  Notes
 
-- **GitHub remote**: `funnelier-io/funnelier` (public). All 38 commits pushed.
+- **GitHub remote**: `funnelier-io/funnelier` (public). All 43 commits pushed.
 - `main` branch is protected: requires 1 PR review, no force pushes.
 - `dev` branch created for feature development.
 - CI/CD workflows (`.github/workflows/ci.yml`, `cd.yml`) exist but have never been triggered.
