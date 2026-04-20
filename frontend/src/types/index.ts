@@ -90,3 +90,14 @@ export type {
   NotificationPreferenceUpdate,
   CreateNotificationRequest,
 } from "./notifications";
+export type {
+  OnboardingStep1Data,
+  OnboardingStep2Data,
+  OnboardingStep3Data,
+  OnboardingFormData,
+  OnboardingResponse,
+  PlanInfo,
+  PlanLimits,
+  PlansResponse,
+  SlugCheckResponse,
+} from "./onboarding";

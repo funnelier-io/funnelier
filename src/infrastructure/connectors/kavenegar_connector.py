@@ -298,12 +298,13 @@ class KavenegarCSVParser:
         """Parse status text to standard status."""
         status_lower = status_text.lower()
 
-        if "تحویل" in status_text or "delivered" in status_lower:
+        # Check failure/undelivered first (before delivered, since "تحویل نشده" contains "تحویل")
+        if "نشده" in status_text or "failed" in status_lower or "undelivered" in status_lower:
+            return "failed"
+        elif "تحویل" in status_text or "delivered" in status_lower:
             return "delivered"
         elif "ارسال" in status_text or "sent" in status_lower:
             return "sent"
-        elif "نشده" in status_text or "failed" in status_lower or "undelivered" in status_lower:
-            return "failed"
         elif "صف" in status_text or "queued" in status_lower or "pending" in status_lower:
             return "pending"
         else:

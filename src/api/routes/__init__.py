@@ -15,6 +15,7 @@ from src.modules.segmentation.api import router as segments_router
 from src.modules.campaigns.api import router as campaigns_router
 from src.modules.team.api import router as team_router
 from src.modules.tenants.api import router as tenants_router
+from src.modules.tenants.api import onboarding_router as tenants_onboarding_router
 from src.modules.export.api import router as export_router
 from src.modules.notifications.api import router as notifications_router
 from src.modules.audit.api import router as audit_router
@@ -31,6 +32,7 @@ __all__ = [
     "campaigns_router",
     "team_router",
     "tenants_router",
+    "tenants_onboarding_router",
     "export_router",
     "notifications_router",
     "audit_router",

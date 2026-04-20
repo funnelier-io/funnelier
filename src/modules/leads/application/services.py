@@ -47,7 +47,7 @@ class ContactService:
     ) -> Contact:
         """Create a new contact."""
         # Normalize phone number
-        normalized_phone = PhoneNumber(raw=phone_number)
+        normalized_phone = PhoneNumber.from_string(phone_number)
 
         # Check for existing contact
         existing = await self._contact_repo.get_by_phone(normalized_phone.normalized)
@@ -109,7 +109,7 @@ class ContactService:
                     continue
 
                 # Normalize phone
-                normalized_phone = PhoneNumber(raw=phone_number)
+                normalized_phone = PhoneNumber.from_string(phone_number)
 
                 # Check for duplicate
                 existing = await self._contact_repo.get_by_phone(normalized_phone.normalized)

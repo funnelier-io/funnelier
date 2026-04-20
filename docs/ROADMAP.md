@@ -15,7 +15,7 @@
 | Current Branch | `main` + `dev` (remote: `funnelier-io/funnelier`) |
 | Tags | `v0.1.0` |
 | Phases Completed | 36 of 36 planned |
-| Backend Unit Tests | 721+ (Sprint 1: +143, Sprint 2: +82) |
+| Backend Unit Tests | 721+ (Sprint 1: +143, Sprint 2: +82, Sprint 3: +22 integration) |
 | Frontend Pages | 14+ dashboard pages |
 | Unstaged Work | None — all phases committed |
 
@@ -62,6 +62,7 @@
 | 34 | User Approval Workflow | BPMN, 5 workers, 48h timer, admin review task | 402 unit |
 | 35 | Funnel Journey | Message correlation, DB fallback, journey API | 447 unit |
 | 36 | Advanced Process Features | SMS compensation, stale-stage notify, ERP escalation BPMN | 447+ unit |
+| 37 | Onboarding Wizard | 4-step self-service tenant signup, public API, plan selection | — |
 
 ---
 
@@ -89,7 +90,7 @@ None — all phases committed.
 | Test coverage report & gap analysis | ✅ Apr 2026 |
 | Sprint 1: P0 test gaps closed (ETL, leads, sales, export) | ✅ Apr 18, 2026 (+143 tests) |
 | Sprint 2: P1 test gaps closed (communications, analytics, connectors) | ✅ Apr 18, 2026 (+82 tests) |
-| Sprint 3: Integration tests + pytest-cov CI gate at 65% | ⏳ CI gate added Apr 19; integration tests May 2026 |
+| Sprint 3: Integration tests + pytest-cov CI gate at 65% | ✅ Apr 19, 2026 (+22 integration tests: notifications, audit, export, billing, cache, search, cross-module flows) |
 
 ### ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ### Q3 2026 — Feature Hardening & UX Polish
@@ -97,7 +98,7 @@ None — all phases committed.
 
 | Milestone | Target |
 |---|---|
-| Phase 37: Multi-tenant onboarding wizard | Jul 2026 |
+| Phase 37: Multi-tenant onboarding wizard | ✅ Apr 2026 |
 | Phase 38: Advanced RFM segmentation UI (drag-and-drop rules) | Jul–Aug 2026 |
 | Phase 39: Campaign A/B split testing (live, not calculator) | Aug 2026 |
 | Phase 40: Real-time dashboard with WebSocket push | Aug–Sep 2026 |

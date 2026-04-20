@@ -81,7 +81,7 @@ class TestPerformanceStats:
 
         # 10 requests each taking 0.1s = 1.0s total → 10 rps
         stats = PerformanceStats(latencies=[0.1] * 10)
-        assert stats.rps == 10.0
+        assert stats.rps == pytest.approx(10.0)
 
     def test_as_dict_keys(self):
         from src.core.perf_utils import PerformanceStats

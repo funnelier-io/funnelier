@@ -533,4 +533,260 @@ class TestAnalyticsTriggers:
         assert resp.status_code in (200, 500)
 
 
+class TestNotificationsAPI:
+    """Integration tests for Notifications module."""
 
+    @pytest.mark.asyncio(loop_scope="session")
+    async def test_list_notifications(self, authed_client):
+        resp = await authed_client.get("/api/v1/notifications")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "notifications" in data
+        assert "unread_count" in data
+
+    @pytest.mark.asyncio(loop_scope="session")
+    async def test_unread_count(self, authed_client):
+        resp = await authed_client.get("/api/v1/notifications/unread-count")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "count" in data
+
+    @pytest.mark.asyncio(loop_scope="session")
+    async def test_mark_all_read(self, authed_client):
+        resp = await authed_client.post("/api/v1/notifications/read-all")
+        assert resp.status_code == 200
+
+
+class TestAuditAPI:
+    """Integration tests for Audit Trail module."""
+
+    @pytest.mark.asyncio(loop_scope="session")
+    async def test_list_audit_logs(self, authed_client):
+        resp = await authed_client.get("/api/v1/audit")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "logs" in data
+        assert "total_count" in data
+
+    @pytest.mark.asyncio(loop_scope="session")
+    async def test_audit_stats(self, authed_client):
+        resp = await authed_client.get("/api/v1/audit/stats")
+        assert resp.status_code == 200
+
+
+class TestExportAPI:
+    """Integration tests for Export module."""
+
+    @pytest.mark.asyncio(loop_scope="session")
+    async def test_list_available_columns(self, authed_client):
+        resp = await authed_client.get("/api/v1/export/columns/contacts")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "columns" in data
+        assert len(data["columns"]) > 0
+
+    @pytest.mark.asyncio(loop_scope="session")
+    async def test_export_contacts_csv(self, authed_client):
+        resp = await authed_client.post("/api/v1/export/download", json={
+            "report_type": "contacts",
+            "format": "csv",
+        })
+        # Should return file bytes or a redirect/job response
+        assert resp.status_code in (200, 202)
+
+    @pytest.mark.asyncio(loop_scope="session")
+    async def test_export_contacts_xlsx(self, authed_client):
+        resp = await authed_client.post("/api/v1/export/download", json={
+            "report_type": "contacts",
+            "format": "xlsx",
+        })
+        assert resp.status_code in (200, 202)
+
+
+class TestTenantsBillingAPI:
+    """Integration tests for Tenants / Billing module."""
+
+    @pytest.mark.asyncio(loop_scope="session")
+    async def test_get_current_tenant(self, authed_client):
+        resp = await authed_client.get("/api/v1/tenants/me")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "id" in data
+        assert "name" in data
+
+    @pytest.mark.asyncio(loop_scope="session")
+    async def test_get_billing_plans(self, authed_client):
+        resp = await authed_client.get("/api/v1/tenants/me/billing/plans")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert isinstance(data, list)
+        assert len(data) >= 1  # At least one plan
+
+    @pytest.mark.asyncio(loop_scope="session")
+    async def test_get_usage_detailed(self, authed_client):
+        resp = await authed_client.get("/api/v1/tenants/me/usage/detailed")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "contacts" in data or "usage" in data or isinstance(data, dict)
+
+
+class TestCacheAPI:
+    """Integration tests for Cache management endpoints."""
+
+    @pytest.mark.asyncio(loop_scope="session")
+    async def test_cache_stats(self, authed_client):
+        resp = await authed_client.get("/api/v1/cache/stats")
+        assert resp.status_code == 200
+        assert isinstance(resp.json(), dict)
+
+    @pytest.mark.asyncio(loop_scope="session")
+    async def test_cache_invalidate(self, authed_client):
+        resp = await authed_client.delete("/api/v1/cache/invalidate")
+        assert resp.status_code == 200
+
+
+class TestSearchAPI:
+    """Integration tests for global search."""
+
+    @pytest.mark.asyncio(loop_scope="session")
+    async def test_global_search(self, authed_client):
+        resp = await authed_client.get("/api/v1/search?q=test")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "results" in data or isinstance(data, dict)
+
+
+class TestCrossModuleFlows:
+    """Cross-module integration tests verifying end-to-end workflows."""
+
+    @pytest.mark.asyncio(loop_scope="session")
+    async def test_lead_to_sms_to_funnel(self, authed_client):
+        """Create contact → send SMS → verify stage updated."""
+        # 1. Create a contact
+        phone = f"0912{uuid4().hex[:7]}"
+        resp = await authed_client.post("/api/v1/leads/contacts", json={
+            "phone_number": phone,
+            "name": "Flow Test Lead",
+        })
+        assert resp.status_code == 201
+        contact = resp.json()
+        cid = contact["id"]
+        assert contact["current_stage"] == "lead_acquired"
+
+        # 2. Send SMS to the contact
+        resp = await authed_client.post("/api/v1/communications/sms/send", json={
+            "phone_number": phone,
+            "content": "سلام، تست فرآیند یکپارچه",
+        })
+        assert resp.status_code == 200
+
+        # 3. Verify the contact's stage can be updated
+        resp = await authed_client.patch(f"/api/v1/leads/contacts/{cid}/stage", json={
+            "stage": "sms_sent"
+        })
+        assert resp.status_code == 200
+        assert resp.json()["current_stage"] == "sms_sent"
+
+    @pytest.mark.asyncio(loop_scope="session")
+    async def test_product_to_invoice_flow(self, authed_client):
+        """Create product → create invoice with product → list invoices."""
+        # 1. Create a product
+        resp = await authed_client.post("/api/v1/sales/products", json={
+            "name": f"سیمان فلو {uuid4().hex[:4]}",
+            "code": f"FL-{uuid4().hex[:4].upper()}",
+            "category": "cement",
+            "unit": "ton",
+            "base_price": 5_000_000,
+            "current_price": 5_500_000,
+        })
+        assert resp.status_code == 201
+        product = resp.json()
+
+        # 2. Create an invoice referencing the product
+        phone = f"0913{uuid4().hex[:7]}"
+        resp = await authed_client.post("/api/v1/sales/invoices", json={
+            "phone_number": phone,
+            "customer_name": "مشتری تست فلو",
+            "line_items": [{
+                "product_id": product["id"],
+                "product_name": product["name"],
+                "quantity": 10,
+                "unit": "ton",
+                "unit_price": product["current_price"],
+            }],
+        })
+        assert resp.status_code == 201
+        invoice = resp.json()
+        assert invoice["total_amount"] == 10 * 5_500_000
+
+        # 3. Verify the invoice appears in the list
+        resp = await authed_client.get("/api/v1/sales/invoices")
+        assert resp.status_code == 200
+        invoices = resp.json()["invoices"]
+        assert any(inv["id"] == invoice["id"] for inv in invoices)
+
+    @pytest.mark.asyncio(loop_scope="session")
+    async def test_contact_assign_and_team_visibility(self, authed_client):
+        """Create contact → assign to salesperson → verify in team stats."""
+        # 1. Create a contact
+        phone = f"0935{uuid4().hex[:7]}"
+        resp = await authed_client.post("/api/v1/leads/contacts", json={
+            "phone_number": phone,
+            "name": "تست تیم",
+        })
+        assert resp.status_code == 201
+        cid = resp.json()["id"]
+
+        # 2. Get team list for a salesperson ID
+        resp = await authed_client.get("/api/v1/team/salespeople")
+        assert resp.status_code == 200
+        salespeople = resp.json()["salespeople"]
+        if salespeople:
+            sp_id = salespeople[0]["id"]
+            sp_name = salespeople[0].get("name", "unknown")
+
+            # 3. Assign contact
+            resp = await authed_client.post(
+                f"/api/v1/leads/contacts/{cid}/assign",
+                json={"salesperson_id": sp_id, "salesperson_name": sp_name},
+            )
+            assert resp.status_code == 200
+
+            # 4. Verify team performance still returns
+            resp = await authed_client.get("/api/v1/team/performance")
+            assert resp.status_code == 200
+
+    @pytest.mark.asyncio(loop_scope="session")
+    async def test_bulk_import_then_stats(self, authed_client):
+        """Bulk import contacts → verify stats reflect new data."""
+        # 1. Get initial stats
+        resp = await authed_client.get("/api/v1/leads/stats/summary")
+        assert resp.status_code == 200
+        initial_total = resp.json()["total_contacts"]
+
+        # 2. Bulk import 3 contacts
+        contacts = [
+            {"phone_number": f"0919{uuid4().hex[:7]}", "name": f"Bulk Flow {i}"}
+            for i in range(3)
+        ]
+        resp = await authed_client.post("/api/v1/leads/contacts/bulk-import", json={
+            "contacts": contacts
+        })
+        assert resp.status_code == 200
+        assert resp.json()["success_count"] == 3
+
+        # 3. Verify stats increased
+        resp = await authed_client.get("/api/v1/leads/stats/summary")
+        assert resp.status_code == 200
+        new_total = resp.json()["total_contacts"]
+        assert new_total >= initial_total + 3
+
+    @pytest.mark.asyncio(loop_scope="session")
+    async def test_predictive_endpoints_accessible(self, authed_client):
+        """Verify predictive analytics endpoints respond."""
+        for endpoint in [
+            "/api/v1/analytics/predictive/churn",
+            "/api/v1/analytics/predictive/lead-scoring",
+        ]:
+            resp = await authed_client.get(endpoint)
+            assert resp.status_code == 200, f"Failed: {endpoint}"

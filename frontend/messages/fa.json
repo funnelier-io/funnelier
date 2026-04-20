@@ -1075,6 +1075,113 @@
     "percentSymbol": "٪",
     "durationMinutes": "دقیقه",
     "durationSeconds": "ثانیه"
+  },
+  "onboarding": {
+    "title": "ایجاد حساب کاربری",
+    "subtitle": "فضای کاری فانلیر خود را در چند مرحله راه‌اندازی کنید",
+    "steps": {
+      "company": "اطلاعات شرکت",
+      "plan": "انتخاب پلن",
+      "account": "حساب مدیر",
+      "review": "بررسی و تأیید"
+    },
+    "company": {
+      "title": "درباره شرکت خود بگویید",
+      "name": "نام شرکت",
+      "namePlaceholder": "مثلاً مصالح ساختمانی پارس",
+      "slug": "آدرس فضای کاری",
+      "slugPlaceholder": "مثلاً pars-materials",
+      "slugAvailable": "این آدرس در دسترس است",
+      "slugTaken": "این آدرس قبلاً گرفته شده",
+      "slugChecking": "در حال بررسی...",
+      "slugHint": "فقط حروف انگلیسی کوچک، اعداد و خط تیره",
+      "industry": "صنعت",
+      "industryOptions": {
+        "building_materials": "مصالح ساختمانی",
+        "retail": "خرده‌فروشی",
+        "manufacturing": "تولید",
+        "services": "خدمات حرفه‌ای",
+        "other": "سایر"
+      },
+      "companySize": "اندازه شرکت",
+      "sizeOptions": {
+        "small": "کوچک (۱-۱۰ نفر)",
+        "medium": "متوسط (۱۱-۵۰ نفر)",
+        "large": "بزرگ (۵۱-۲۰۰ نفر)",
+        "enterprise": "سازمانی (۲۰۰+ نفر)"
+      },
+      "phone": "تلفن (اختیاری)",
+      "email": "ایمیل (اختیاری)",
+      "description": "توضیحات (اختیاری)"
+    },
+    "plan": {
+      "title": "پلن مناسب تیم خود را انتخاب کنید",
+      "monthly": "ماهانه",
+      "yearly": "سالانه",
+      "yearlyDiscount": "~۱۷٪ تخفیف",
+      "popular": "محبوب‌ترین",
+      "free": "رایگان",
+      "perMonth": "/ماه",
+      "perYear": "/سال",
+      "currency": "تومان",
+      "contacts": "مخاطب",
+      "smsPerMonth": "پیامک/ماه",
+      "users": "کاربر",
+      "apiCalls": "درخواست API/روز",
+      "dataSources": "منبع داده",
+      "features": "ویژگی‌ها",
+      "select": "انتخاب پلن",
+      "selected": "انتخاب شده ✓"
+    },
+    "account": {
+      "title": "حساب مدیر خود را بسازید",
+      "fullName": "نام و نام خانوادگی",
+      "fullNamePlaceholder": "مثلاً علی محمدی",
+      "username": "نام کاربری",
+      "usernamePlaceholder": "مثلاً ali.mohammadi",
+      "email": "آدرس ایمیل",
+      "emailPlaceholder": "مثلاً ali@example.com",
+      "password": "رمز عبور",
+      "passwordPlaceholder": "حداقل ۸ کاراکتر",
+      "passwordConfirm": "تأیید رمز عبور",
+      "passwordConfirmPlaceholder": "رمز عبور را دوباره وارد کنید",
+      "passwordMismatch": "رمزهای عبور مطابقت ندارند"
+    },
+    "review": {
+      "title": "بررسی اطلاعات شما",
+      "companySection": "اطلاعات شرکت",
+      "planSection": "پلن انتخاب شده",
+      "accountSection": "حساب مدیر",
+      "edit": "ویرایش",
+      "companyName": "شرکت",
+      "slug": "آدرس فضای کاری",
+      "industry": "صنعت",
+      "companySize": "اندازه",
+      "selectedPlan": "پلن",
+      "adminName": "نام",
+      "adminUsername": "نام کاربری",
+      "adminEmail": "ایمیل"
+    },
+    "actions": {
+      "next": "بعدی",
+      "back": "قبلی",
+      "submit": "ایجاد فضای کاری",
+      "submitting": "در حال ایجاد...",
+      "loginLink": "قبلاً حساب دارید؟",
+      "login": "ورود"
+    },
+    "success": {
+      "title": "به فانلیر خوش آمدید!",
+      "message": "فضای کاری شما آماده است. در حال انتقال به داشبورد..."
+    },
+    "errors": {
+      "generic": "مشکلی پیش آمد. لطفاً دوباره تلاش کنید.",
+      "slugTaken": "این آدرس فضای کاری قبلاً گرفته شده است.",
+      "required": "این فیلد الزامی است",
+      "emailInvalid": "لطفاً یک آدرس ایمیل معتبر وارد کنید",
+      "passwordMin": "رمز عبور باید حداقل ۸ کاراکتر باشد",
+      "usernameMin": "نام کاربری باید حداقل ۳ کاراکتر باشد"
+    }
   }
 }
 

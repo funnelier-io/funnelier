@@ -1075,6 +1075,113 @@
     "percentSymbol": "%",
     "durationMinutes": "min",
     "durationSeconds": "sec"
+  },
+  "onboarding": {
+    "title": "Create Your Account",
+    "subtitle": "Set up your Funnelier workspace in a few steps",
+    "steps": {
+      "company": "Company Info",
+      "plan": "Choose Plan",
+      "account": "Admin Account",
+      "review": "Review & Confirm"
+    },
+    "company": {
+      "title": "Tell us about your company",
+      "name": "Company Name",
+      "namePlaceholder": "e.g. Pars Building Materials",
+      "slug": "Workspace URL",
+      "slugPlaceholder": "e.g. pars-materials",
+      "slugAvailable": "This URL is available",
+      "slugTaken": "This URL is already taken",
+      "slugChecking": "Checking availability...",
+      "slugHint": "Lowercase letters, numbers, and hyphens only",
+      "industry": "Industry",
+      "industryOptions": {
+        "building_materials": "Building Materials",
+        "retail": "Retail",
+        "manufacturing": "Manufacturing",
+        "services": "Professional Services",
+        "other": "Other"
+      },
+      "companySize": "Company Size",
+      "sizeOptions": {
+        "small": "Small (1-10)",
+        "medium": "Medium (11-50)",
+        "large": "Large (51-200)",
+        "enterprise": "Enterprise (200+)"
+      },
+      "phone": "Phone (optional)",
+      "email": "Email (optional)",
+      "description": "Description (optional)"
+    },
+    "plan": {
+      "title": "Choose the right plan for your team",
+      "monthly": "Monthly",
+      "yearly": "Yearly",
+      "yearlyDiscount": "Save ~17%",
+      "popular": "Most Popular",
+      "free": "Free",
+      "perMonth": "/month",
+      "perYear": "/year",
+      "currency": "Toman",
+      "contacts": "Contacts",
+      "smsPerMonth": "SMS/month",
+      "users": "Users",
+      "apiCalls": "API calls/day",
+      "dataSources": "Data sources",
+      "features": "Features",
+      "select": "Select Plan",
+      "selected": "Selected ✓"
+    },
+    "account": {
+      "title": "Create your admin account",
+      "fullName": "Full Name",
+      "fullNamePlaceholder": "e.g. Ali Mohammadi",
+      "username": "Username",
+      "usernamePlaceholder": "e.g. ali.mohammadi",
+      "email": "Email Address",
+      "emailPlaceholder": "e.g. ali@example.com",
+      "password": "Password",
+      "passwordPlaceholder": "At least 8 characters",
+      "passwordConfirm": "Confirm Password",
+      "passwordConfirmPlaceholder": "Enter password again",
+      "passwordMismatch": "Passwords do not match"
+    },
+    "review": {
+      "title": "Review your setup",
+      "companySection": "Company Information",
+      "planSection": "Selected Plan",
+      "accountSection": "Admin Account",
+      "edit": "Edit",
+      "companyName": "Company",
+      "slug": "Workspace URL",
+      "industry": "Industry",
+      "companySize": "Size",
+      "selectedPlan": "Plan",
+      "adminName": "Name",
+      "adminUsername": "Username",
+      "adminEmail": "Email"
+    },
+    "actions": {
+      "next": "Next",
+      "back": "Back",
+      "submit": "Create Workspace",
+      "submitting": "Creating...",
+      "loginLink": "Already have an account?",
+      "login": "Sign in"
+    },
+    "success": {
+      "title": "Welcome to Funnelier!",
+      "message": "Your workspace is ready. Redirecting to dashboard..."
+    },
+    "errors": {
+      "generic": "Something went wrong. Please try again.",
+      "slugTaken": "This workspace URL is already taken.",
+      "required": "This field is required",
+      "emailInvalid": "Please enter a valid email address",
+      "passwordMin": "Password must be at least 8 characters",
+      "usernameMin": "Username must be at least 3 characters"
+    }
   }
 }
 

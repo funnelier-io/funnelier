@@ -345,6 +345,7 @@ def create_app() -> FastAPI:
                 "campaigns": "/api/v1/campaigns",
                 "team": "/api/v1/team",
                 "tenants": "/api/v1/tenants",
+                "onboarding": "/api/v1/tenants/onboard",
                 "import": "/api/v1/import",
                 "search": "/api/v1/search",
                 "export": "/api/v1/export",
@@ -372,6 +373,7 @@ def create_app() -> FastAPI:
         campaigns_router,
         team_router,
         tenants_router,
+        tenants_onboarding_router,
         export_router,
         notifications_router,
         audit_router,
@@ -397,6 +399,9 @@ def create_app() -> FastAPI:
 
     # Webhook Routes (no auth — validated via shared secret)
     app.include_router(webhook_router, prefix="/api/v1", tags=["Webhooks"])
+
+    # Tenant Onboarding (public — no auth required)
+    app.include_router(tenants_onboarding_router, prefix="/api/v1", tags=["Onboarding"])
 
     # Protected API Routes — require authenticated user
     app.include_router(

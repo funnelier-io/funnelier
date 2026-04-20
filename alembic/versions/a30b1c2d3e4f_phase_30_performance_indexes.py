@@ -12,6 +12,7 @@ Create Date: 2026-04-08
 """
 
 from alembic import op
+from sqlalchemy import inspect
 
 
 # revision identifiers, used by Alembic.
@@ -52,16 +53,22 @@ def upgrade() -> None:
         ["tenant_id", "campaign_id"],
     )
 
-    # campaign_recipients — contact-level campaign history
-    op.create_index(
-        "ix_campaign_recipients_contact",
-        "campaign_recipients",
-        ["contact_id"],
-    )
+    # campaign_recipients — contact-level campaign history (table may not exist)
+    bind = op.get_bind()
+    insp = inspect(bind)
+    if "campaign_recipients" in insp.get_table_names():
+        op.create_index(
+            "ix_campaign_recipients_contact",
+            "campaign_recipients",
+            ["contact_id"],
+        )
 
 
 def downgrade() -> None:
-    op.drop_index("ix_campaign_recipients_contact", table_name="campaign_recipients")
+    bind = op.get_bind()
+    insp = inspect(bind)
+    if "campaign_recipients" in insp.get_table_names():
+        op.drop_index("ix_campaign_recipients_contact", table_name="campaign_recipients")
     op.drop_index("ix_sms_logs_tenant_campaign", table_name="sms_logs")
     op.execute("DROP INDEX IF EXISTS ix_contacts_name_trgm")
     op.drop_index("ix_contacts_tenant_created_at", table_name="contacts")

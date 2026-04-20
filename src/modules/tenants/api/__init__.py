@@ -2,7 +2,7 @@
 Tenants API Module
 """
 
-from .routes import router
+from .routes import router, onboarding_router
 from .schemas import (
     TenantResponse,
     TenantListResponse,
@@ -13,6 +13,7 @@ from .schemas import (
 
 __all__ = [
     "router",
+    "onboarding_router",
     "TenantResponse",
     "TenantListResponse",
     "CreateTenantRequest",

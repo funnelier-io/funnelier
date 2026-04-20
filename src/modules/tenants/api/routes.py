@@ -9,8 +9,9 @@ from typing import Annotated
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.dependencies import get_current_tenant_id
+from src.api.dependencies import get_current_tenant_id, get_db_session
 from src.modules.auth.api.routes import require_auth, require_admin
 from src.modules.auth.domain.entities import UserRole
 
@@ -32,112 +33,76 @@ from .schemas import (
     UpdateTenantSettingsRequest,
     UsageStatsResponse,
 )
+from src.modules.tenants.application.onboarding_service import (
+    OnboardingRequest,
+)
 
 router = APIRouter(prefix="/tenants", tags=["tenants"])
 
+# Separate public router for onboarding (no auth required).
+# Must be registered WITHOUT the require_auth dependency in main.py.
+onboarding_router = APIRouter(prefix="/tenants", tags=["onboarding"])
 
 
 # ============================================================================
-# Tenant CRUD Endpoints (Super Admin)
+# Public Onboarding Endpoints (no auth required)
 # ============================================================================
 
-@router.get("", response_model=TenantListResponse)
-async def list_tenants(
-    admin_user=Depends(require_admin),
-    is_active: bool | None = Query(default=None),
-    search: str | None = Query(default=None),
+@onboarding_router.post("/onboard", status_code=201)
+async def onboard_tenant(
+    request: OnboardingRequest,
+    session: AsyncSession = Depends(get_db_session),
 ):
     """
-    List all tenants (super admin only).
-    """
-    if not admin_user.has_permission(UserRole.SUPER_ADMIN):
-        raise HTTPException(status_code=403, detail="Super admin access required")
+    Self-service tenant onboarding wizard.
+    Creates a new tenant, admin user, and seeds default settings.
+    Returns auth tokens for immediate login.
 
-    return TenantListResponse(
-        tenants=[],
-        total_count=0,
+    This is a PUBLIC endpoint — no authentication required.
+    """
+    from src.modules.tenants.application.onboarding_service import (
+        OnboardingService,
     )
 
+    service = OnboardingService(session)
+    result = await service.onboard(request)
+    return result
 
-@router.post("", response_model=TenantResponse, status_code=201)
-async def create_tenant(
-    request: CreateTenantRequest,
-    admin_user=Depends(require_admin),
+
+@onboarding_router.get("/onboard/check-slug")
+async def check_slug_availability(
+    slug: str = Query(..., min_length=2, max_length=100),
+    session: AsyncSession = Depends(get_db_session),
 ):
     """
-    Create a new tenant (super admin only).
+    Check if a tenant slug is available.
+    Public endpoint: no authentication required.
     """
-    if not admin_user.has_permission(UserRole.SUPER_ADMIN):
-        raise HTTPException(status_code=403, detail="Super admin access required")
+    from src.modules.tenants.application.onboarding_service import OnboardingService
 
-    return TenantResponse(
-        id=uuid4(),
-        name=request.name,
-        slug=request.slug,
-        description=request.description,
-        domain=request.domain,
-        logo_url=request.logo_url,
-        timezone=request.timezone,
-        language=request.language,
-        currency=request.currency,
-        is_active=request.is_active,
-        plan="basic",
-        max_users=10,
-        max_contacts=10000,
-        features=["funnel_analytics", "rfm_segmentation", "sms_campaigns"],
-        metadata=request.metadata,
-        created_at=datetime.utcnow(),
-    )
+    service = OnboardingService(session)
+    available = await service.check_slug_available(slug)
+    return {"slug": slug, "available": available}
 
 
-@router.get("/{tenant_id}", response_model=TenantResponse)
-async def get_tenant(
-    tenant_id: UUID,
-    current_tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
-    admin_user=Depends(require_admin),
-):
+@onboarding_router.get("/onboard/plans")
+async def get_onboarding_plans():
     """
-    Get tenant details.
+    Get available plans for the onboarding wizard.
+    Public endpoint: no authentication required.
     """
-    # Allow if super admin or accessing own tenant
-    if not admin_user.has_permission(UserRole.SUPER_ADMIN) and tenant_id != current_tenant_id:
-        raise HTTPException(status_code=403, detail="Access denied")
+    from src.modules.tenants.application.billing_service import PLAN_CATALOGUE
+    return {
+        "plans": [p.model_dump() for p in PLAN_CATALOGUE],
+    }
 
-    raise HTTPException(status_code=404, detail="Tenant not found")
-
-
-@router.put("/{tenant_id}", response_model=TenantResponse)
-async def update_tenant(
-    tenant_id: UUID,
-    request: UpdateTenantRequest,
-    current_tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
-    admin_user=Depends(require_admin),
-):
-    """
-    Update tenant details.
-    """
-    if not admin_user.has_permission(UserRole.SUPER_ADMIN) and tenant_id != current_tenant_id:
-        raise HTTPException(status_code=403, detail="Access denied")
-
-    raise HTTPException(status_code=404, detail="Tenant not found")
-
-
-@router.delete("/{tenant_id}", status_code=204)
-async def delete_tenant(
-    tenant_id: UUID,
-    admin_user=Depends(require_admin),
-):
-    """
-    Delete a tenant (super admin only).
-    """
-    if not admin_user.has_permission(UserRole.SUPER_ADMIN):
-        raise HTTPException(status_code=403, detail="Super admin access required")
-
-    pass
 
 
 # ============================================================================
 # Current Tenant Endpoints
+# ============================================================================
+# NOTE: /me routes MUST be registered before /{tenant_id} so FastAPI does
+# not try to parse the literal string "me" as a UUID path parameter.
 # ============================================================================
 
 @router.get("/me", response_model=TenantResponse)
@@ -463,7 +428,7 @@ async def get_billing_info(
     )
 
 
-@router.get("/me/billing/plans", response_model=list)
+@router.get("/me/billing/plans", response_model=dict)
 async def list_available_plans(
     tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
 ):
@@ -492,3 +457,102 @@ async def get_detailed_usage(
     return metrics.model_dump()
 
 
+# ============================================================================
+# Tenant CRUD Endpoints (Super Admin)
+# ============================================================================
+# NOTE: /{tenant_id} routes MUST come after /me routes (see above).
+# ============================================================================
+
+@router.get("", response_model=TenantListResponse)
+async def list_tenants(
+    admin_user=Depends(require_admin),
+    is_active: bool | None = Query(default=None),
+    search: str | None = Query(default=None),
+):
+    """
+    List all tenants (super admin only).
+    """
+    if not admin_user.has_permission(UserRole.SUPER_ADMIN):
+        raise HTTPException(status_code=403, detail="Super admin access required")
+
+    return TenantListResponse(
+        tenants=[],
+        total_count=0,
+    )
+
+
+@router.post("", response_model=TenantResponse, status_code=201)
+async def create_tenant(
+    request: CreateTenantRequest,
+    admin_user=Depends(require_admin),
+):
+    """
+    Create a new tenant (super admin only).
+    """
+    if not admin_user.has_permission(UserRole.SUPER_ADMIN):
+        raise HTTPException(status_code=403, detail="Super admin access required")
+
+    return TenantResponse(
+        id=uuid4(),
+        name=request.name,
+        slug=request.slug,
+        description=request.description,
+        domain=request.domain,
+        logo_url=request.logo_url,
+        timezone=request.timezone,
+        language=request.language,
+        currency=request.currency,
+        is_active=request.is_active,
+        plan="basic",
+        max_users=10,
+        max_contacts=10000,
+        features=["funnel_analytics", "rfm_segmentation", "sms_campaigns"],
+        metadata=request.metadata,
+        created_at=datetime.utcnow(),
+    )
+
+
+@router.get("/{tenant_id}", response_model=TenantResponse)
+async def get_tenant(
+    tenant_id: UUID,
+    current_tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
+    admin_user=Depends(require_admin),
+):
+    """
+    Get tenant details.
+    """
+    # Allow if super admin or accessing own tenant
+    if not admin_user.has_permission(UserRole.SUPER_ADMIN) and tenant_id != current_tenant_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    raise HTTPException(status_code=404, detail="Tenant not found")
+
+
+@router.put("/{tenant_id}", response_model=TenantResponse)
+async def update_tenant(
+    tenant_id: UUID,
+    request: UpdateTenantRequest,
+    current_tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
+    admin_user=Depends(require_admin),
+):
+    """
+    Update tenant details.
+    """
+    if not admin_user.has_permission(UserRole.SUPER_ADMIN) and tenant_id != current_tenant_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    raise HTTPException(status_code=404, detail="Tenant not found")
+
+
+@router.delete("/{tenant_id}", status_code=204)
+async def delete_tenant(
+    tenant_id: UUID,
+    admin_user=Depends(require_admin),
+):
+    """
+    Delete a tenant (super admin only).
+    """
+    if not admin_user.has_permission(UserRole.SUPER_ADMIN):
+        raise HTTPException(status_code=403, detail="Super admin access required")
+
+    pass

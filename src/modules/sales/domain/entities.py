@@ -62,7 +62,7 @@ class InvoiceLineItem(TenantEntity[UUID]):
     """
 
     id: UUID = Field(default_factory=uuid4)
-    invoice_id: UUID
+    invoice_id: UUID | None = None
 
     product_id: UUID | None = None
     product_name: str

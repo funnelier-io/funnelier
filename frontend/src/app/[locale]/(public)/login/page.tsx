@@ -3,6 +3,7 @@
 import { useState, FormEvent } from "react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
+import { Link } from "@/i18n/navigation";
 import { useAuthStore } from "@/stores/auth-store";
 
 export default function LoginPage() {
@@ -14,6 +15,8 @@ export default function LoginPage() {
   const router = useRouter();
   const t = useTranslations("auth");
   const tApp = useTranslations("app");
+
+  const tOnboard = useTranslations("onboarding.actions");
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -86,6 +89,13 @@ export default function LoginPage() {
               {loading ? t("loggingIn") : t("loginButton")}
             </button>
           </form>
+
+          {/* Sign-up link */}
+          <div className="mt-4 text-center text-sm text-gray-500">
+            <Link href="/onboard" className="text-blue-600 hover:underline font-medium">
+              {tOnboard("loginLink")}
+            </Link>
+          </div>
         </div>
 
         <p className="text-center text-xs text-gray-400 mt-4">
@@ -95,4 +105,6 @@ export default function LoginPage() {
     </div>
   );
 }
+
+
 
