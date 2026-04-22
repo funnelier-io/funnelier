@@ -99,11 +99,11 @@ None — all phases committed.
 | Milestone | Target |
 |---|---|
 | Phase 37: Multi-tenant onboarding wizard | ✅ Apr 2026 |
-| Phase 38: Advanced RFM segmentation UI (drag-and-drop rules) | Jul–Aug 2026 |
-| Phase 39: Campaign A/B split testing (live, not calculator) | Aug 2026 |
-| Phase 40: Real-time dashboard with WebSocket push | Aug–Sep 2026 |
-| Phase 41: Mobile-responsive audit & PWA | Sep 2026 |
-| Phase 42: Camunda Process Monitoring Dashboard | Sep 2026 |
+| Phase 38: Advanced RFM segmentation UI (drag-and-drop rules) | ✅ Apr 2026 |
+| Phase 39: Campaign A/B split testing (live, not calculator) | ✅ Apr 2026 |
+| Phase 40: Real-time dashboard with WebSocket push | ✅ Apr 2026 |
+| Phase 41: Mobile-responsive audit & PWA | ✅ Apr 2026 |
+| Phase 42: Camunda Process Monitoring Dashboard | ✅ Apr 2026 |
 | Frontend E2E test expansion (target: 80+ Playwright tests) | Ongoing |
 | Tag `v0.2.0` | Sep 2026 |
 
