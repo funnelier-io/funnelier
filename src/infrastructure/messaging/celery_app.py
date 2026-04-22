@@ -89,6 +89,12 @@ celery_app.conf.update(
             "schedule": crontab(minute="*/15"),
             "args": [],
         },
+        # Real-time KPI WebSocket push every 30 seconds (Phase 40)
+        "ws-kpi-snapshot": {
+            "task": "tasks.push_kpi_snapshots",
+            "schedule": 30.0,
+            "args": [],
+        },
     },
 )
 

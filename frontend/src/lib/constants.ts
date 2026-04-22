@@ -121,6 +121,7 @@ export const NAV_ITEMS = [
   { href: "/imports", labelKey: "imports", icon: "📂" },
   { href: "/reports", labelKey: "reports", icon: "📥" },
   { href: "/data-sync", labelKey: "dataSync", icon: "🔄" },
+  { href: "/processes", labelKey: "processes", icon: "⚙️" },
   { href: "/predictive", labelKey: "predictive", icon: "🔮" },
   { href: "/alerts", labelKey: "alerts", icon: "🔔" },
   { href: "/team", labelKey: "team", icon: "👥" },

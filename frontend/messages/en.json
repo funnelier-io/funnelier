@@ -28,7 +28,8 @@
     "predictive": "Predictive Analytics",
     "usage": "Usage & Billing",
     "activity": "Activity Log",
-    "navMenu": "Navigation menu"
+    "navMenu": "Navigation menu",
+    "processes": "Processes"
   },
   "common": {
     "loading": "Loading...",
@@ -1182,6 +1183,34 @@
       "passwordMin": "Password must be at least 8 characters",
       "usernameMin": "Username must be at least 3 characters"
     }
+  },
+  "offline": {
+    "title": "You are offline",
+    "description": "Check your connection and try again.",
+    "retry": "Retry",
+    "home": "Back to home"
+  },
+  "processes": {
+    "title": "Process Monitoring",
+    "subtitle": "Camunda BPMS",
+    "totalActive": "Active",
+    "totalCompleted": "Completed",
+    "totalFailed": "Failed",
+    "healthScore": "Health Score",
+    "workflowBreakdown": "Workflow Breakdown",
+    "active": "Active",
+    "completed": "Completed",
+    "failed": "Failed",
+    "avgDuration": "Avg Duration",
+    "staleAlerts": "Stale Process Alerts",
+    "activeInstances": "Active Instances",
+    "businessKey": "Business Key",
+    "workflowType": "Workflow",
+    "currentStep": "Current Step",
+    "startedAt": "Started",
+    "duration": "Duration",
+    "status": "Status",
+    "noProcesses": "No processes found",
+    "noInstances": "No active instances"
   }
 }
-

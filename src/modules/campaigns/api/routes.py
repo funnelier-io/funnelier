@@ -9,13 +9,16 @@ from typing import Annotated, Any
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel, Field
 
 from src.api.dependencies import (
     get_current_tenant_id,
+    get_db_session,
     get_campaign_repository,
     get_campaign_recipient_repository,
     get_campaign_workflow_service,
 )
+from sqlalchemy.ext.asyncio import AsyncSession
 from src.modules.campaigns.infrastructure.repositories import (
     CampaignRepository,
     CampaignRecipientRepository,
@@ -585,3 +588,92 @@ async def get_recommended_templates(
             for t in templates
         ],
     }
+
+
+# ============================================================================
+# A/B Test — Live Operations (Phase 39)
+# ============================================================================
+
+
+class ABTestLaunchRequest(BaseModel):
+    message_a: str
+    message_b: str
+    split_percent: int = Field(default=50, ge=10, le=90)
+    winner_criteria: str = "open_rate"
+    min_sample_size: int = 50
+
+
+class ABTestEventRequest(BaseModel):
+    variant: str                  # "A" or "B"
+    event_type: str               # "sent" | "open" | "conversion"
+
+
+class ABTestPromoteRequest(BaseModel):
+    winner: str                   # "A" or "B"
+
+
+@router.post("/campaigns/{campaign_id}/launch-ab-test", response_model=dict)
+async def launch_ab_test(
+    campaign_id: UUID,
+    body: ABTestLaunchRequest,
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+):
+    """Split recipients and activate A/B test for a campaign."""
+    from src.modules.campaigns.application.ab_test_service import ABTestService
+    from src.modules.campaigns.domain.ab_test import ABTestConfig
+    svc = ABTestService(session, tenant_id)
+    config = ABTestConfig(
+        message_a=body.message_a,
+        message_b=body.message_b,
+        split_percent=body.split_percent,
+        winner_criteria=body.winner_criteria,
+        min_sample_size=body.min_sample_size,
+    )
+    result = await svc.launch(campaign_id, config)
+    await session.commit()
+    return result
+
+
+@router.post("/campaigns/{campaign_id}/ab-event", response_model=dict)
+async def record_ab_test_event(
+    campaign_id: UUID,
+    body: ABTestEventRequest,
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+):
+    """Record an open/conversion event for an A/B variant."""
+    from src.modules.campaigns.application.ab_test_service import ABTestService
+    svc = ABTestService(session, tenant_id)
+    await svc.record_event(campaign_id, body.variant, body.event_type)
+    await session.commit()
+    return {"status": "recorded"}
+
+
+@router.get("/campaigns/{campaign_id}/ab-results", response_model=dict)
+async def get_ab_test_live_results(
+    campaign_id: UUID,
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+):
+    """Get live A/B test results including computed winner."""
+    from src.modules.campaigns.application.ab_test_service import ABTestService
+    svc = ABTestService(session, tenant_id)
+    return await svc.get_results(campaign_id)
+
+
+@router.post("/campaigns/{campaign_id}/promote-winner", response_model=dict)
+async def promote_ab_winner(
+    campaign_id: UUID,
+    body: ABTestPromoteRequest,
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+):
+    """Promote a winning A/B variant as the campaign's main message."""
+    from src.modules.campaigns.application.ab_test_service import ABTestService
+    svc = ABTestService(session, tenant_id)
+    result = await svc.promote_winner(campaign_id, body.winner)
+    await session.commit()
+    return result
+
+

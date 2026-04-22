@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { routing } from "@/i18n/routing";
 import { isRtl, type Locale } from "@/i18n/config";
 import { setRequestLocale } from "next-intl/server";
+import ServiceWorkerRegistrar from "@/components/ServiceWorkerRegistrar";
 
 export default async function LocaleLayout({
   children,
@@ -28,6 +29,7 @@ export default async function LocaleLayout({
     <html lang={locale} dir={dir}>
       <body className={`antialiased ${fontClass}`}>
         <NextIntlClientProvider locale={locale} messages={messages}>
+          <ServiceWorkerRegistrar />
           {children}
         </NextIntlClientProvider>
       </body>

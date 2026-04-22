@@ -100,8 +100,9 @@ async def lifespan(app: FastAPI):
 
     # Start WebSocket Redis pub/sub listener (non-blocking)
     try:
-        from src.api.websocket import start_redis_listener
+        from src.api.websocket import start_redis_listener, start_redis_ws_subscriber
         _redis_listener_task = asyncio.create_task(start_redis_listener())
+        asyncio.create_task(start_redis_ws_subscriber())
         logger.info("WebSocket Redis listener task started")
     except Exception as e:
         logger.warning(f"Could not start WebSocket Redis listener: {e}")

@@ -85,6 +85,64 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 
+# ─── broadcast_to_tenant helper (Phase 40) ──────────────────────────────────
+
+async def broadcast_to_tenant(tenant_id: str, message: str) -> None:
+    """Broadcast a raw JSON string to all WS clients of a tenant."""
+    if tenant_id not in manager._connections:
+        return
+    dead = []
+    for ws in list(manager._connections[tenant_id]):
+        try:
+            if ws.client_state == WebSocketState.CONNECTED:
+                await ws.send_text(message)
+        except Exception:
+            dead.append(ws)
+    for ws in dead:
+        manager.disconnect(ws, tenant_id)
+
+
+# ─── Redis pub/sub subscriber (Phase 40) ─────────────────────────────────────
+
+async def start_redis_ws_subscriber() -> None:
+    """
+    Background coroutine that subscribes to ws:* Redis channels and
+    forwards published messages to connected WebSocket clients.
+    Started as a lifespan task in main.py.
+    """
+    import redis.asyncio as redis
+    from src.core.config import settings
+
+    logger.info("Starting Redis WS subscriber on channel ws:*")
+    r = redis.from_url(settings.redis_url, decode_responses=True)
+    pubsub = r.pubsub()
+
+    try:
+        await pubsub.psubscribe("ws:*")
+        async for message in pubsub.listen():
+            if message["type"] != "pmessage":
+                continue
+            channel: str = message.get("channel", "")
+            data: str = message.get("data", "")
+            # channel = "ws:{tenant_id}"
+            tenant_id = channel.removeprefix("ws:")
+            if tenant_id and data:
+                try:
+                    await broadcast_to_tenant(tenant_id, data)
+                except Exception as exc:
+                    logger.debug("WS broadcast error: %s", exc)
+    except asyncio.CancelledError:
+        logger.info("Redis WS subscriber stopped")
+    except Exception as exc:
+        logger.warning("Redis WS subscriber error: %s", exc)
+    finally:
+        try:
+            await pubsub.punsubscribe("ws:*")
+            await r.aclose()
+        except Exception:
+            pass
+
+
 # ─── WebSocket Endpoint ──────────────────────────────────────────────────────
 
 @ws_router.websocket("/ws")
@@ -208,4 +266,3 @@ async def ws_status():
         "connections": manager.connection_count,
         "status": "active",
     }
-

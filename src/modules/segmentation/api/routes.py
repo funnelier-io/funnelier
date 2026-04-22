@@ -6,7 +6,7 @@ FastAPI routes for RFM segmentation endpoints — wired to real database.
 
 from datetime import datetime
 from typing import Annotated
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,9 +16,11 @@ from src.api.dependencies import get_current_tenant_id, get_db_session
 from src.core.domain import RFMSegment
 
 from ..domain import SEGMENT_RECOMMENDATIONS
+from ..domain.segment_rules import NamedSegmentRule
 
 from .schemas import (
     AllRecommendationsResponse,
+    BulkAssignResponse,
     CampaignContactsRequest,
     CampaignContactsResponse,
     ContactRecommendationsResponse,
@@ -35,6 +37,10 @@ from .schemas import (
     SegmentDistributionResponse,
     SegmentMigrationSchema,
     SegmentRecommendationResponse,
+    SegmentRuleCreateRequest,
+    SegmentRulePreviewResponse,
+    SegmentRuleResponse,
+    SegmentRuleUpdateRequest,
     UpdateRFMConfigRequest,
 )
 
@@ -46,6 +52,11 @@ router = APIRouter(tags=["segmentation"])
 async def _get_contact_repo(session: AsyncSession, tenant_id: UUID):
     from src.modules.leads.infrastructure.repositories import ContactRepository
     return ContactRepository(session, tenant_id)
+
+
+async def _get_rule_service(session: AsyncSession, tenant_id: UUID):
+    from src.modules.segmentation.application.segment_rule_service import SegmentRuleService
+    return SegmentRuleService(session, tenant_id)
 
 
 SEGMENT_NAMES_FA = {
@@ -61,6 +72,160 @@ SEGMENT_NAMES_FA = {
     "hibernating": "خواب",
     "lost": "از دست رفته",
 }
+
+
+# ─────────────── Segment Rules (Phase 38) ───────────────
+
+@router.post("/rules", response_model=SegmentRuleResponse, status_code=201)
+async def create_segment_rule(
+    body: SegmentRuleCreateRequest,
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+):
+    """Create a new named RFM segment rule."""
+    svc = await _get_rule_service(session, tenant_id)
+    rule = NamedSegmentRule(
+        id=uuid4(),
+        tenant_id=tenant_id,
+        **body.model_dump(),
+    )
+    created = await svc.create(rule)
+    await session.commit()
+    return SegmentRuleResponse(
+        id=created.id,
+        tenant_id=created.tenant_id,
+        created_at=created.created_at,
+        updated_at=created.updated_at,
+        **body.model_dump(),
+    )
+
+
+@router.get("/rules", response_model=list[SegmentRuleResponse])
+async def list_segment_rules(
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+):
+    """List all named segment rules for this tenant, ordered by priority."""
+    svc = await _get_rule_service(session, tenant_id)
+    rules = await svc.list_rules()
+    return [
+        SegmentRuleResponse(
+            id=r.id,
+            tenant_id=r.tenant_id,
+            name=r.name,
+            description=r.description,
+            color=r.color,
+            priority=r.priority,
+            r_min=r.r_min, r_max=r.r_max,
+            f_min=r.f_min, f_max=r.f_max,
+            m_min=r.m_min, m_max=r.m_max,
+            created_at=r.created_at,
+            updated_at=r.updated_at,
+        )
+        for r in rules
+    ]
+
+
+@router.get("/rules/{rule_id}", response_model=SegmentRuleResponse)
+async def get_segment_rule(
+    rule_id: UUID,
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+):
+    """Get a single segment rule by ID."""
+    svc = await _get_rule_service(session, tenant_id)
+    rule = await svc.get(rule_id)
+    if not rule:
+        raise HTTPException(status_code=404, detail="Segment rule not found")
+    return SegmentRuleResponse(
+        id=rule.id, tenant_id=rule.tenant_id,
+        name=rule.name, description=rule.description,
+        color=rule.color, priority=rule.priority,
+        r_min=rule.r_min, r_max=rule.r_max,
+        f_min=rule.f_min, f_max=rule.f_max,
+        m_min=rule.m_min, m_max=rule.m_max,
+        created_at=rule.created_at, updated_at=rule.updated_at,
+    )
+
+
+@router.put("/rules/{rule_id}", response_model=SegmentRuleResponse)
+async def update_segment_rule(
+    rule_id: UUID,
+    body: SegmentRuleUpdateRequest,
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+):
+    """Update an existing segment rule."""
+    svc = await _get_rule_service(session, tenant_id)
+    existing = await svc.get(rule_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="Segment rule not found")
+    updated_rule = NamedSegmentRule(
+        id=rule_id,
+        tenant_id=tenant_id,
+        created_at=existing.created_at,
+        **body.model_dump(),
+    )
+    updated = await svc.update(updated_rule)
+    await session.commit()
+    if not updated:
+        raise HTTPException(status_code=404, detail="Segment rule not found")
+    return SegmentRuleResponse(
+        id=updated.id, tenant_id=updated.tenant_id,
+        name=updated.name, description=updated.description,
+        color=updated.color, priority=updated.priority,
+        r_min=updated.r_min, r_max=updated.r_max,
+        f_min=updated.f_min, f_max=updated.f_max,
+        m_min=updated.m_min, m_max=updated.m_max,
+        created_at=updated.created_at, updated_at=updated.updated_at,
+    )
+
+
+@router.delete("/rules/{rule_id}", status_code=204)
+async def delete_segment_rule(
+    rule_id: UUID,
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+):
+    """Soft-delete a segment rule."""
+    svc = await _get_rule_service(session, tenant_id)
+    deleted = await svc.delete(rule_id)
+    await session.commit()
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Segment rule not found")
+
+
+@router.get("/rules/{rule_id}/preview", response_model=SegmentRulePreviewResponse)
+async def preview_segment_rule(
+    rule_id: UUID,
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+    sample_size: int = Query(default=20, ge=1, le=100),
+):
+    """Return count + sample contact IDs matching this rule."""
+    svc = await _get_rule_service(session, tenant_id)
+    preview = await svc.preview(rule_id, sample_size=sample_size)
+    return SegmentRulePreviewResponse(
+        rule_id=preview.rule_id,
+        matching_count=preview.matching_count,
+        sample_contact_ids=preview.sample_contact_ids,
+    )
+
+
+@router.post("/rules/{rule_id}/assign", response_model=BulkAssignResponse)
+async def bulk_assign_segment_rule(
+    rule_id: UUID,
+    tenant_id: Annotated[UUID, Depends(get_current_tenant_id)],
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+):
+    """Bulk-assign rfm_segment on all contacts matching this rule."""
+    svc = await _get_rule_service(session, tenant_id)
+    result = await svc.bulk_assign(rule_id)
+    return BulkAssignResponse(
+        rule_id=result.rule_id,
+        rule_name=result.rule_name,
+        assigned_count=result.assigned_count,
+    )
 
 
 @router.get("/config", response_model=RFMConfigResponse)

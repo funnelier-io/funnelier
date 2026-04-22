@@ -28,7 +28,8 @@
     "predictive": "تحلیل پیش‌بینی",
     "usage": "مصرف و صورتحساب",
     "activity": "لاگ فعالیت",
-    "navMenu": "منوی ناوبری"
+    "navMenu": "منوی ناوبری",
+    "processes": "فرآیندها"
   },
   "common": {
     "loading": "در حال بارگذاری...",
@@ -1182,6 +1183,34 @@
       "passwordMin": "رمز عبور باید حداقل ۸ کاراکتر باشد",
       "usernameMin": "نام کاربری باید حداقل ۳ کاراکتر باشد"
     }
+  },
+  "offline": {
+    "title": "اتصال اینترنت برقرار نیست",
+    "description": "لطفاً اتصال خود را بررسی کرده و دوباره امتحان کنید.",
+    "retry": "تلاش مجدد",
+    "home": "بازگشت به خانه"
+  },
+  "processes": {
+    "title": "پایش فرآیندها",
+    "subtitle": "Camunda BPMS",
+    "totalActive": "فرآیند فعال",
+    "totalCompleted": "تکمیل شده",
+    "totalFailed": "شکست خورده",
+    "healthScore": "سلامت سیستم",
+    "workflowBreakdown": "وضعیت هر نوع فرآیند",
+    "active": "فعال",
+    "completed": "تکمیل",
+    "failed": "خطا",
+    "avgDuration": "میانگین مدت",
+    "staleAlerts": "فرآیندهای متوقف",
+    "activeInstances": "نمونه‌های فعال",
+    "businessKey": "کلید کسب‌وکار",
+    "workflowType": "نوع فرآیند",
+    "currentStep": "گام جاری",
+    "startedAt": "شروع",
+    "duration": "مدت",
+    "status": "وضعیت",
+    "noProcesses": "فرآیندی یافت نشد",
+    "noInstances": "نمونه فعالی وجود ندارد"
   }
 }
-

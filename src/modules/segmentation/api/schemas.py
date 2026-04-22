@@ -193,3 +193,47 @@ class CampaignContactsResponse(BaseModel):
     total_contacts: int
     contacts: list[RFMProfileResponse]
 
+
+# ─── Segment Rule Schemas (Phase 38) ─────────────────────────────────────────
+
+class SegmentRuleBase(BaseModel):
+    name: str
+    description: str | None = None
+    color: str = "#6366f1"
+    priority: int = 0
+    r_min: int = Field(default=1, ge=1, le=5)
+    r_max: int = Field(default=5, ge=1, le=5)
+    f_min: int = Field(default=1, ge=1, le=5)
+    f_max: int = Field(default=5, ge=1, le=5)
+    m_min: int = Field(default=1, ge=1, le=5)
+    m_max: int = Field(default=5, ge=1, le=5)
+
+
+class SegmentRuleCreateRequest(SegmentRuleBase):
+    pass
+
+
+class SegmentRuleUpdateRequest(SegmentRuleBase):
+    pass
+
+
+class SegmentRuleResponse(SegmentRuleBase):
+    id: UUID
+    tenant_id: UUID
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class SegmentRulePreviewResponse(BaseModel):
+    rule_id: UUID
+    matching_count: int
+    sample_contact_ids: list[UUID] = Field(default_factory=list)
+
+
+class BulkAssignResponse(BaseModel):
+    rule_id: UUID
+    rule_name: str
+    assigned_count: int
+

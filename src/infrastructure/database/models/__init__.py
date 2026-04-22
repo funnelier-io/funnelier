@@ -46,6 +46,7 @@ from .notifications import (
 from .audit import (
     AuditLogModel,
 )
+from .segment_rules import SegmentRuleModel
 
 __all__ = [
     # Tenants
@@ -83,4 +84,6 @@ __all__ = [
     "NotificationPreferenceModel",
     # Audit
     "AuditLogModel",
+    # Segment Rules
+    "SegmentRuleModel",
 ]
