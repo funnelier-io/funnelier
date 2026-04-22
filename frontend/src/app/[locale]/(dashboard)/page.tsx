@@ -51,6 +51,9 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
+      {/* Real-time KPI ticker (Phase 40) */}
+      <RealtimeKPITicker />
+
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <h1 className="text-xl font-bold">{t("title")}</h1>
         <DateRangePicker

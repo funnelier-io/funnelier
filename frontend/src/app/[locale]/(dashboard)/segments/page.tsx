@@ -1,27 +1,56 @@
 "use client";
 
+import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { useFormat } from "@/lib/use-format";
 import { useApi } from "@/lib/hooks";
 import StatCard from "@/components/ui/StatCard";
 import RFMDoughnutChart from "@/components/charts/RFMDoughnutChart";
+import SegmentRuleBuilder from "@/components/segments/SegmentRuleBuilder";
 
 import { SEGMENT_LABELS, SEGMENT_COLORS } from "@/lib/constants";
 import type { SegmentDistribution } from "@/types/segments";
 import type { AllRecommendationsResponse, SegmentRecommendation } from "@/types/segments";
+import type { SegmentRuleListResponse } from "@/types/segment-rules";
+
+type Tab = "overview" | "rules";
 
 export default function SegmentsPage() {
   const t = useTranslations("segments");
   const fmt = useFormat();
   const tc = useTranslations("common");
+  const [activeTab, setActiveTab] = useState<Tab>("overview");
   const dist = useApi<SegmentDistribution>("/segments/distribution");
   const recs = useApi<AllRecommendationsResponse>("/segments/recommendations");
+  const rulesResp = useApi<SegmentRuleListResponse>("/segments/rules");
 
   const activeSegments = dist.data?.segments?.filter((s) => s.count > 0) || [];
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-bold">{t("title")}</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-bold">{t("title")}</h1>
+        <div className="flex gap-1 bg-gray-100 rounded-xl p-1">
+          {(["overview", "rules"] as Tab[]).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${activeTab === tab ? "bg-white shadow text-gray-800" : "text-gray-500 hover:text-gray-700"}`}
+            >
+              {t(`tab_${tab}`)}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {activeTab === "rules" && (
+        <SegmentRuleBuilder
+          rules={rulesResp.data?.rules ?? []}
+          onRefresh={rulesResp.refetch}
+        />
+      )}
+
+      {activeTab === "overview" && (
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -174,6 +203,7 @@ function RecommendationCard({ rec }: { rec: SegmentRecommendation }) {
           </span>
         </div>
       </div>
+      )}
     </div>
   );
 }

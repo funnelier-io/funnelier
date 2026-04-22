@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
+import ABTestModal from "@/components/campaigns/ABTestModal";
 import { useFormat } from "@/lib/use-format";
 import { useApi } from "@/lib/hooks";
 import { apiPost } from "@/lib/api-client";
@@ -43,6 +44,7 @@ export default function CampaignsPage() {
     content: "",
   });
   const [creating, setCreating] = useState(false);
+  const [abTestCampaign, setAbTestCampaign] = useState<{ id: string; name: string } | null>(null);
 
   const queryPath =
     statusFilter === "all"
@@ -185,13 +187,22 @@ export default function CampaignsPage() {
               {t("resume")}
             </button>
           )}
+          {(c.status === "draft" || c.status === "running") && (
+            <button
+              onClick={() => setAbTestCampaign({ id: c.id, name: c.name })}
+              className="text-xs px-2 py-1 bg-purple-50 text-purple-700 rounded hover:bg-purple-100"
+            >
+              A/B
+            </button>
+          )}
         </div>
       ),
     },
   ];
 
   return (
-    <div className="space-y-6">
+    <>
+      <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold">{t("title")}</h1>
         <button
@@ -383,6 +394,15 @@ export default function CampaignsPage() {
         )}
       </div>
     </div>
+
+    {abTestCampaign && (
+      <ABTestModal
+        campaignId={abTestCampaign.id}
+        campaignName={abTestCampaign.name}
+        onClose={() => setAbTestCampaign(null)}
+      />
+    )}
+    </>
   );
 }
 
